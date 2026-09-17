@@ -11,7 +11,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     requireAuth(session);
     // Live role: sessions are stateless, so re-read the row — a demoted or
     // deactivated user must not keep riding a stale cookie.
-    const user = await db.user.findUnique({ where: { id: session.userId } });
+    const user = await db.user.findUnique({
+      where: { id: session.userId },
+      include: { org: { select: { id: true, slug: true, name: true } } },
+    });
     if (!user) return NextResponse.json({ user: null }, { status: 401 });
     // Only safe fields are serialized — passwordHash never leaves the server.
     return NextResponse.json({
@@ -22,6 +25,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         orgId: user.orgId,
         createdAt: user.createdAt,
       },
+      org: user.org,
     });
   } catch (e) {
     return toErrorResponse(e);

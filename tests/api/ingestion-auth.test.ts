@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
+import { GET as runGET } from "@/app/api/v1/runs/[runId]/route";
 import { GET as metricsGET } from "@/app/api/v1/runs/[runId]/metrics/route";
 import { db } from "@/lib/db";
 import { generateApiKey } from "@/lib/auth";
@@ -74,9 +75,58 @@ describe.skipIf(!apiTestsEnabled)("ingestion auth modes", () => {
         { params: Promise.resolve({ runId }) },
       );
       expect(res.status).toBe(404);
+
+      // Same for the single-run endpoint.
+      const single = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, a.admin),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(single.status).toBe(404);
     } finally {
       await a.cleanup();
       await b.cleanup();
+    }
+  });
+
+  it("single run returns metadata, config, and metric keys", async () => {
+    const org = await createTestOrg("ingrun");
+    try {
+      const made = await runsPOST(
+        await authedRequest("/api/v1/runs", org.member, {
+          method: "POST",
+          body: {
+            project: "detail-proj",
+            name: "detail-run",
+            config: { lr: 0.01 },
+            tags: ["a"],
+          },
+        }),
+      );
+      expect(made.status).toBe(201);
+      const runId = ((await made.json()) as { run_id: string }).run_id;
+
+      const res = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, org.member),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(res.status).toBe(200);
+      const { run } = (await res.json()) as {
+        run: {
+          name: string;
+          status: string;
+          config: unknown;
+          tags: string[];
+          keys: string[];
+          project: { slug: string };
+        };
+      };
+      expect(run.name).toBe("detail-run");
+      expect(run.config).toEqual({ lr: 0.01 });
+      expect(run.tags).toEqual(["a"]);
+      expect(run.project.slug).toBe("detail-proj");
+      expect(run.keys).toEqual([]);
+    } finally {
+      await org.cleanup();
     }
   });
 });

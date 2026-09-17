@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { POST as acceptPOST } from "@/app/api/v1/auth/invites/accept/route";
+import { GET as previewGET } from "@/app/api/v1/auth/invites/[token]/route";
 import { POST as bootstrapPOST } from "@/app/api/v1/auth/bootstrap/route";
 import { POST as loginPOST } from "@/app/api/v1/auth/login/route";
 import { POST as logoutPOST } from "@/app/api/v1/auth/logout/route";
@@ -55,6 +56,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       expect(setCookie).toContain("HttpOnly");
       const body = await res.json();
       expect(body.user.email).toBe(org.member.email);
+      expect(body.org.slug).toBe(org.orgSlug);
     } finally {
       await org.cleanup();
     }
@@ -85,7 +87,9 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
         await authedRequest("/api/v1/auth/me", org.admin),
       );
       expect(authed.status).toBe(200);
-      expect((await authed.json()).user.email).toBe(org.admin.email);
+      const body = await authed.json();
+      expect(body.user.email).toBe(org.admin.email);
+      expect(body.org.slug).toBe(org.orgSlug);
 
       const anon = await meGET(apiRequest("/api/v1/auth/me"));
       expect(anon.status).toBe(401);
@@ -144,6 +148,30 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
         }),
       );
       expect(bad.status).toBe(400);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("invite preview shows org+email; garbage and used tokens fail", async () => {
+    const org = await createTestOrg("auth");
+    try {
+      const email = testEmail("preview");
+      const { inviteUrl } = await inviteMember(org.admin, email);
+      const token = inviteUrl.split("/").pop()!;
+
+      const ok = await previewGET(apiRequest("/api/v1/x"), {
+        params: Promise.resolve({ token }),
+      });
+      expect(ok.status).toBe(200);
+      const body = await ok.json();
+      expect(body.email).toBe(email);
+      expect(body.org.slug).toBe(org.orgSlug);
+
+      const garbage = await previewGET(apiRequest("/api/v1/x"), {
+        params: Promise.resolve({ token: "garbage" }),
+      });
+      expect(garbage.status).toBe(400);
     } finally {
       await org.cleanup();
     }

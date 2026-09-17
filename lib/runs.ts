@@ -215,3 +215,57 @@ export async function getMetrics(
   const maxPoints = opts.maxPoints ?? 2000;
   return { key: opts.key, points: downsample(points, maxPoints) };
 }
+
+export interface RunDetail {
+  id: string;
+  name: string;
+  status: string;
+  tags: string[];
+  config: unknown;
+  summary: unknown;
+  createdBy: string;
+  startedAt: Date;
+  finishedAt: Date | null;
+  project: { id: string; slug: string; name: string };
+  keys: string[];
+}
+
+/** Single run + its metric keys for the detail/compare views. */
+export async function getRun(
+  auth: { orgId: string },
+  runId: string,
+): Promise<RunDetail> {
+  const run = await db.run.findFirst({
+    where: { id: runId, project: { orgId: auth.orgId } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      tags: true,
+      config: true,
+      summary: true,
+      startedAt: true,
+      finishedAt: true,
+      createdBy: { select: { email: true } },
+      project: { select: { id: true, slug: true, name: true } },
+    },
+  });
+  if (!run) throw new KeyAuthError(404, "run not found");
+  const keyRows = await db.metric.groupBy({
+    by: ["key"],
+    where: { runId },
+  });
+  return {
+    id: run.id,
+    name: run.name,
+    status: run.status,
+    tags: run.tags,
+    config: run.config,
+    summary: run.summary,
+    createdBy: run.createdBy.email,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    project: run.project,
+    keys: keyRows.map((k) => k.key).sort(),
+  };
+}

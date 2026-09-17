@@ -10,8 +10,8 @@ import { acceptInviteSchema } from "@/lib/validation";
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     const body = acceptInviteSchema.parse(await request.json());
-    const { session, user } = await acceptInvite(body);
-    const res = NextResponse.json({ user }, { status: 200 });
+    const { session, user, org } = await acceptInvite(body);
+    const res = NextResponse.json({ user, org }, { status: 200 });
     setSessionCookie(res, await signSession(session));
     return res;
   } catch (e) {

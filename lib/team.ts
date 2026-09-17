@@ -40,6 +40,18 @@ function toPublicUser(u: {
   return { id: u.id, email: u.email, role: u.role, createdAt: u.createdAt };
 }
 
+export interface OrgRef {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+async function orgRef(orgId: string): Promise<OrgRef> {
+  const org = await db.org.findUnique({ where: { id: orgId } });
+  if (!org) throw new ApiError(404, "org not found");
+  return { id: org.id, slug: org.slug, name: org.name };
+}
+
 async function uniqueOrgSlug(base: string): Promise<string> {
   let slug = slugify(base) || "org";
   for (let i = 0; i < 5; i++) {
@@ -80,7 +92,7 @@ export async function bootstrapOrg(input: BootstrapInput): Promise<{
 
 export async function loginUser(
   input: LoginInput,
-): Promise<{ session: Session; user: PublicUser }> {
+): Promise<{ session: Session; user: PublicUser; org: OrgRef }> {
   const user = await db.user.findUnique({ where: { email: input.email } });
   if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
     // Same message either way — no user-enumeration oracle.
@@ -92,12 +104,12 @@ export async function loginUser(
     email: user.email,
     role: user.role,
   };
-  return { session, user: toPublicUser(user) };
+  return { session, user: toPublicUser(user), org: await orgRef(user.orgId) };
 }
 
 export async function acceptInvite(
   input: AcceptInviteInput,
-): Promise<{ session: Session; user: PublicUser }> {
+): Promise<{ session: Session; user: PublicUser; org: OrgRef }> {
   const claims: InviteClaims | null = await verifyInviteToken(input.token);
   if (!claims) throw new ApiError(400, "invalid or expired invite");
   const user = await db.user.findUnique({ where: { id: claims.userId } });
@@ -118,7 +130,24 @@ export async function acceptInvite(
     email: updated.email,
     role: updated.role,
   };
-  return { session, user: toPublicUser(updated) };
+  return {
+    session,
+    user: toPublicUser(updated),
+    org: await orgRef(updated.orgId),
+  };
+}
+
+/** Public invite preview for the accept page (token IS the auth). */
+export async function previewInvite(
+  token: string,
+): Promise<{ email: string; org: OrgRef; valid: true }> {
+  const claims = await verifyInviteToken(token);
+  if (!claims) throw new ApiError(400, "invalid or expired invite");
+  const user = await db.user.findUnique({ where: { id: claims.userId } });
+  if (!user || !isInvitePendingHash(user.passwordHash)) {
+    throw new ApiError(410, "invite already used or revoked");
+  }
+  return { email: user.email, org: await orgRef(user.orgId), valid: true };
 }
 
 export async function listMembers(

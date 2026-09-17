@@ -8,8 +8,8 @@ import { loginSchema } from "@/lib/validation";
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     const body = loginSchema.parse(await request.json());
-    const { session, user } = await loginUser(body);
-    const res = NextResponse.json({ user });
+    const { session, user, org } = await loginUser(body);
+    const res = NextResponse.json({ user, org });
     setSessionCookie(res, await signSession(session));
     return res;
   } catch (e) {

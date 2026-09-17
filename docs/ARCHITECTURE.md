@@ -43,12 +43,28 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
 
 ## Auth (two modes, one surface)
 
-- Dashboard: session cookie (jose-signed, M2).
+- Dashboard: stateless HS256 JWT in an httpOnly cookie (`lib/session.ts`).
+  No server-side session table in v1 (revocation on password change is a
+  documented v2 gap, not an oversight).
 - SDK/training scripts: `Authorization: Bearer <key>` — keys store only a
   SHA-256 hash, shown once on creation. Role is looked up **live** from the
   owning user per request, so demotion immediately restricts existing keys.
+- Sessions get the same live-role treatment (`getLiveSession` in
+  `lib/api-auth.ts`): the cookie is only an identity assertion; every guarded
+  route re-reads the user row. A demoted/deactivated user loses access on
+  their very next request — stale cookies grant nothing.
 - One guard: `requireRole()` in `lib/auth.ts`. No inline role checks in routes.
-- Keys are never valid for team-management endpoints (session-only by design).
+- Keys are never valid for team-management endpoints (session-only by design;
+  pinned by an explicit test).
+- First boot: `POST /api/v1/auth/bootstrap` provisions the org + first super
+  admin, allowed only while the users table is empty (permanently 403 after).
+  No public signup; members join via invite links (stateless JWT, 7-day
+  expiry, single-use enforced by the invite-pending password sentinel).
+- Deactivation keeps the user row (run attribution survives) but locks the
+  password hash (`!locked-…`) and revokes all keys. The last super admin can
+  be neither demoted nor deactivated.
+- Org slug (`Org.slug`) drives `/[org]/…` dashboard URLs — path-based, not
+  subdomain, for self-hosters behind arbitrary reverse proxies.
 
 ## Pinned versions (M0, re-check each milestone)
 

@@ -1,4 +1,4 @@
-import { requireAuth, type Session } from "@/lib/auth";
+import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import { slugify } from "@/lib/runs";
@@ -93,4 +93,21 @@ export async function createProject(
     }
     throw e;
   }
+}
+
+/** Delete a project + its runs + metrics (cascade). Super admin only. */
+export async function deleteProject(
+  session: Session | null,
+  orgSlug: string,
+  projectSlug: string,
+): Promise<{ slug: string }> {
+  requireRole(session, "SUPER_ADMIN");
+  const orgId = await orgIdFor(session, orgSlug);
+  const project = await db.project.findUnique({
+    where: { orgId_slug: { orgId, slug: projectSlug } },
+    select: { id: true },
+  });
+  if (!project) throw new ApiError(404, "project not found");
+  await db.project.delete({ where: { id: project.id } });
+  return { slug: projectSlug };
 }

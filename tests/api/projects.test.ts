@@ -4,6 +4,7 @@ import {
   GET as listGET,
   POST as createPOST,
 } from "@/app/api/v1/orgs/[orgSlug]/projects/route";
+import { DELETE as deletePOST } from "@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/route";
 import {
   apiRequest,
   apiTestsEnabled,
@@ -13,6 +14,10 @@ import {
 
 const params = (orgSlug: string) => ({
   params: Promise.resolve({ orgSlug }),
+});
+
+const deleteParams = (orgSlug: string, projectSlug: string) => ({
+  params: Promise.resolve({ orgSlug, projectSlug }),
 });
 
 describe.skipIf(!apiTestsEnabled)("projects routes", () => {
@@ -75,6 +80,45 @@ describe.skipIf(!apiTestsEnabled)("projects routes", () => {
     } finally {
       await a.cleanup();
       await b.cleanup();
+    }
+  });
+
+  it("project delete: admin cascades, member → 403", async () => {
+    const org = await createTestOrg("projdel");
+    try {
+      await createPOST(
+        await authedRequest("/api/v1/x", org.member, {
+          method: "POST",
+          body: { name: "Doomed Project" },
+        }),
+        params(org.orgSlug),
+      );
+
+      const memberDel = await deletePOST(
+        await authedRequest("/api/v1/x", org.member, { method: "DELETE" }),
+        deleteParams(org.orgSlug, "doomed-project"),
+      );
+      expect(memberDel.status).toBe(403);
+
+      const adminDel = await deletePOST(
+        await authedRequest("/api/v1/x", org.admin, { method: "DELETE" }),
+        deleteParams(org.orgSlug, "doomed-project"),
+      );
+      expect(adminDel.status).toBe(200);
+
+      const list = await listGET(
+        await authedRequest("/api/v1/x", org.member),
+        params(org.orgSlug),
+      );
+      expect((await list.json()).projects).toHaveLength(0);
+
+      const missing = await deletePOST(
+        await authedRequest("/api/v1/x", org.admin, { method: "DELETE" }),
+        deleteParams(org.orgSlug, "doomed-project"),
+      );
+      expect(missing.status).toBe(404);
+    } finally {
+      await org.cleanup();
     }
   });
 });

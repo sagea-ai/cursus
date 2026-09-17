@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
-import { GET as runGET } from "@/app/api/v1/runs/[runId]/route";
+import {
+  DELETE as runDELETE,
+  GET as runGET,
+  PATCH as runPATCH,
+} from "@/app/api/v1/runs/[runId]/route";
 import { GET as metricsGET } from "@/app/api/v1/runs/[runId]/metrics/route";
 import { db } from "@/lib/db";
 import { generateApiKey } from "@/lib/auth";
@@ -125,6 +129,88 @@ describe.skipIf(!apiTestsEnabled)("ingestion auth modes", () => {
       expect(run.tags).toEqual(["a"]);
       expect(run.project.slug).toBe("detail-proj");
       expect(run.keys).toEqual([]);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("member can rename/retag; empty patch → 400", async () => {
+    const org = await createTestOrg("ingupd");
+    try {
+      const made = await runsPOST(
+        await authedRequest("/api/v1/runs", org.member, {
+          method: "POST",
+          body: { project: "p", name: "old" },
+        }),
+      );
+      const runId = ((await made.json()) as { run_id: string }).run_id;
+
+      const patched = await runPATCH(
+        await authedRequest(`/api/v1/runs/${runId}`, org.member, {
+          method: "PATCH",
+          body: { name: "new", tags: ["x", "y"] },
+        }),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(patched.status).toBe(200);
+      expect(await patched.json()).toMatchObject({
+        run: { id: runId, name: "new", tags: ["x", "y"] },
+      });
+
+      const empty = await runPATCH(
+        await authedRequest(`/api/v1/runs/${runId}`, org.member, {
+          method: "PATCH",
+          body: {},
+        }),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(empty.status).toBe(400);
+
+      const anon = await runPATCH(
+        apiRequest(`/api/v1/runs/${runId}`, {
+          method: "PATCH",
+          body: { name: "z" },
+        }),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(anon.status).toBe(401);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("run delete: admin ok (metrics cascade), member → 403, key → 401", async () => {
+    const org = await createTestOrg("ingdel");
+    try {
+      const made = await runsPOST(
+        await authedRequest("/api/v1/runs", org.member, {
+          method: "POST",
+          body: { project: "p", name: "doomed" },
+        }),
+      );
+      const runId = ((await made.json()) as { run_id: string }).run_id;
+
+      const memberDel = await runDELETE(
+        await authedRequest(`/api/v1/runs/${runId}`, org.member, {
+          method: "DELETE",
+        }),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(memberDel.status).toBe(403);
+
+      const adminDel = await runDELETE(
+        await authedRequest(`/api/v1/runs/${runId}`, org.admin, {
+          method: "DELETE",
+        }),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(adminDel.status).toBe(200);
+
+      const gone = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, org.admin),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(gone.status).toBe(404);
     } finally {
       await org.cleanup();
     }

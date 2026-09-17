@@ -44,6 +44,17 @@ export const finishRunSchema = z.object({
 
 export type FinishRunInput = z.infer<typeof finishRunSchema>;
 
+export const updateRunSchema = z
+  .object({
+    name: z.string().min(1).max(128).optional(),
+    tags: z.array(z.string().min(1).max(64)).max(32).optional(),
+  })
+  .refine((b) => b.name !== undefined || b.tags !== undefined, {
+    message: "nothing to update",
+  });
+
+export type UpdateRunInput = z.infer<typeof updateRunSchema>;
+
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(320),
 });

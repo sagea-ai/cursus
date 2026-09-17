@@ -5,8 +5,10 @@ import type {
   CreateRunInput,
   FinishRunInput,
   LogBatchInput,
+  UpdateRunInput,
 } from "@/lib/validation";
 import { KeyAuthError } from "@/lib/api-auth";
+import { requireRole, type Session } from "@/lib/auth";
 
 // Business logic for ingestion routes. Route handlers stay thin
 // (validate → auth → call service → return); everything testable lives here.
@@ -268,4 +270,33 @@ export async function getRun(
     project: run.project,
     keys: keyRows.map((k) => k.key).sort(),
   };
+}
+
+/** Rename / retag a run. Any org member (consistent with open visibility). */
+export async function updateRun(
+  auth: { orgId: string },
+  runId: string,
+  input: UpdateRunInput,
+): Promise<{ id: string; name: string; tags: string[] }> {
+  await assertRunInOrg(auth.orgId, runId);
+  const run = await db.run.update({
+    where: { id: runId },
+    data: {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.tags !== undefined ? { tags: input.tags } : {}),
+    },
+    select: { id: true, name: true, tags: true },
+  });
+  return run;
+}
+
+/** Delete a run + its metrics (cascade). Super admin only (§5.1). */
+export async function deleteRun(
+  session: Session | null,
+  runId: string,
+): Promise<{ id: string }> {
+  requireRole(session, "SUPER_ADMIN");
+  await assertRunInOrg(session.orgId, runId);
+  await db.run.delete({ where: { id: runId } });
+  return { id: runId };
 }

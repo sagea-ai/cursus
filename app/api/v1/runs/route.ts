@@ -7,9 +7,7 @@ import { createRunSchema } from "@/lib/validation";
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
-    const auth = await authenticateApiKey(
-      request.headers.get("authorization"),
-    );
+    const auth = await authenticateApiKey(request.headers.get("authorization"));
     const body = createRunSchema.parse(await request.json());
     const result = await createRun(auth, body);
     return Response.json(result, { status: 201 });

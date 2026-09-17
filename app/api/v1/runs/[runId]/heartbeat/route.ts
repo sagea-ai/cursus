@@ -10,9 +10,7 @@ export async function PATCH(
 ): Promise<Response> {
   try {
     const { runId } = await ctx.params;
-    const auth = await authenticateApiKey(
-      request.headers.get("authorization"),
-    );
+    const auth = await authenticateApiKey(request.headers.get("authorization"));
     return Response.json(await heartbeat(auth, runId));
   } catch (e) {
     return toErrorResponse(e);

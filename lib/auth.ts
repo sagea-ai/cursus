@@ -23,7 +23,9 @@ export class AuthError extends Error {
   }
 }
 
-export function requireAuth(session: Session | null): asserts session is Session {
+export function requireAuth(
+  session: Session | null,
+): asserts session is Session {
   if (!session) throw new AuthError(401, "authentication required");
 }
 

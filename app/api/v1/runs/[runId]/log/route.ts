@@ -11,9 +11,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { runId } = await ctx.params;
-    const auth = await authenticateApiKey(
-      request.headers.get("authorization"),
-    );
+    const auth = await authenticateApiKey(request.headers.get("authorization"));
     const body = logBatchSchema.parse(await request.json());
     const result = await logBatch(auth, runId, body);
     // 202: fire-and-forget from the SDK's perspective — don't block training.

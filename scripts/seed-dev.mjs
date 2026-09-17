@@ -42,11 +42,7 @@ const userId =
 await client.query(
   `INSERT INTO "ApiKey" ("id", "orgId", "userId", "keyHash", "label")
    VALUES ($1, 'seed-org', $2, $3, 'dev-seed')`,
-  [
-    cuid("key"),
-    userId,
-    createHash("sha256").update(plaintext).digest("hex"),
-  ],
+  [cuid("key"), userId, createHash("sha256").update(plaintext).digest("hex")],
 );
 
 console.log(`org: seed-org\nuser: ${email}\nCURSUS_API_KEY=${plaintext}`);

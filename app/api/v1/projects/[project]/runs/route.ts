@@ -10,9 +10,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { project } = await ctx.params;
-    const auth = await authenticateApiKey(
-      request.headers.get("authorization"),
-    );
+    const auth = await authenticateApiKey(request.headers.get("authorization"));
     const sp = request.nextUrl.searchParams;
     const cursor = sp.get("cursor") ?? undefined;
     const limitRaw = sp.get("limit");

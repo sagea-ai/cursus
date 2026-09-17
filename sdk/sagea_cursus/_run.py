@@ -57,7 +57,8 @@ class Run:
         if step is None:
             warnings.warn("cursus: log() without step; using 0.")
             step = 0
-        wall = datetime.now(timezone.utc).isoformat()
+        # Z-suffixed UTC: unambiguous for every server parser (Zod, Go, etc.).
+        wall = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         try:
             points = [
                 {"key": k, "step": int(step), "value": float(v), "wall_time": wall}

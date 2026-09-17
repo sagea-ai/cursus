@@ -42,7 +42,9 @@ export async function authenticateApiKey(
   const keyHash = hashApiKey(plaintext);
   const key = await db.apiKey.findUnique({
     where: { keyHash },
-    include: { user: { select: { id: true, orgId: true, email: true, role: true } } },
+    include: {
+      user: { select: { id: true, orgId: true, email: true, role: true } },
+    },
   });
   if (!key || key.revokedAt) {
     throw new KeyAuthError(401, "invalid or revoked API key");

@@ -1,0 +1,10 @@
+# Don't reformat the user's spec doc or generated/vendor output.
+PRD.md
+.next/
+out/
+build/
+coverage/
+app/generated/
+prisma/migrations/
+node_modules/
+sdk/__pycache__/

@@ -19,9 +19,7 @@ function createClient(): PrismaClient {
       "DATABASE_URL is not set. Copy .env.example to .env and point it at Postgres 16+.",
     );
   }
-  const pool =
-    globalForPrisma.pool ??
-    new Pool({ connectionString, max: 10 });
+  const pool = globalForPrisma.pool ?? new Pool({ connectionString, max: 10 });
   if (!globalForPrisma.pool) globalForPrisma.pool = pool;
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });

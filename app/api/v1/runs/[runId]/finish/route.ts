@@ -11,9 +11,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { runId } = await ctx.params;
-    const auth = await authenticateApiKey(
-      request.headers.get("authorization"),
-    );
+    const auth = await authenticateApiKey(request.headers.get("authorization"));
     const body = finishRunSchema.parse(await request.json());
     return Response.json(await finishRun(auth, runId, body));
   } catch (e) {

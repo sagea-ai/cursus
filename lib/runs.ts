@@ -205,9 +205,7 @@ export async function getMetrics(
     where: {
       runId,
       key: opts.key,
-      ...(opts.afterStep !== undefined
-        ? { step: { gt: opts.afterStep } }
-        : {}),
+      ...(opts.afterStep !== undefined ? { step: { gt: opts.afterStep } } : {}),
     },
     orderBy: { step: "asc" },
     // Select step/value only — never ship the BigInt PK to JSON (PRD §4).

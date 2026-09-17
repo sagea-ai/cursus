@@ -28,7 +28,8 @@ export const logPointSchema = z.object({
   key: z.string().min(1).max(256),
   step: z.number().int().nonnegative(),
   value: z.number().finite(),
-  wall_time: z.string().datetime().optional(),
+  // offset:true — Python's datetime.isoformat() emits +00:00, not Z.
+  wall_time: z.string().datetime({ offset: true }).optional(),
 });
 
 export const logBatchSchema = z.object({
@@ -57,11 +58,7 @@ export const createKeySchema = z.object({
 
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(128),
-  slug: z
-    .string()
-    .min(1)
-    .max(128)
-    .optional(),
+  slug: z.string().min(1).max(128).optional(),
 });
 
 export const metricsQuerySchema = z.object({

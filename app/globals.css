@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
+/* Cursus theme — dark-mode-first (PRD §7). SAGEA blues on near-black.
+ * Single theme in v1 (no toggle): :root IS the dark palette.
+ * --warning is the one consistent crash/alert tone app-wide. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --radius: 0.625rem;
+  --background: #06080f;
+  --foreground: #f2f5fb;
+  --card: #0b0f1a;
+  --card-foreground: #f2f5fb;
+  --muted: #131a2b;
+  --muted-foreground: #8b96ad;
+  --border: #1c2440;
+  --input: #1c2440;
+  --primary: #1976fd;
+  --primary-foreground: #ffffff;
+  --primary-deep: #0050fd;
+  --primary-ink: #0235ad;
+  --accent-soft: #45aafd;
+  --accent-pale: #75c4fd;
+  --secondary: #ffffff;
+  --warning: #fbbf24;
+  --ring: #1976fd;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-deep: var(--primary-deep);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-pale: var(--accent-pale);
+  --color-secondary: var(--secondary);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.status-running-dot {
+  animation: status-pulse 1.6s ease-in-out infinite;
 }

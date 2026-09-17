@@ -1,0 +1,229 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import * as React from "react";
+import { FiCopy, FiPlus } from "react-icons/fi";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+export interface KeyRow {
+  id: string;
+  label: string;
+  ownerEmail?: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+export function KeysManager({
+  keys,
+  isAdmin,
+}: {
+  keys: KeyRow[];
+  isAdmin: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [label, setLabel] = React.useState("");
+  const [plaintext, setPlaintext] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/v1/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    const body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not create key");
+      return;
+    }
+    // Shown exactly once — the server never stores it.
+    setPlaintext(body.plaintext);
+  }
+
+  function close() {
+    setOpen(false);
+    setLabel("");
+    setPlaintext(null);
+    setError(null);
+    setCopied(false);
+    router.refresh();
+  }
+
+  async function revoke(id: string, keyLabel: string, owner?: string) {
+    const whose = owner ? `${owner}'s key "${keyLabel}"` : `key "${keyLabel}"`;
+    if (
+      !confirm(
+        `Revoke ${whose}? Any training job using it will fail to log from that moment on.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/v1/keys/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json();
+      alert(body.error ?? "Could not revoke key");
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {isAdmin
+            ? "All keys in the org. Revoking someone else's key breaks their running jobs — confirm carefully."
+            : "Your keys. Use one per machine as CURSUS_API_KEY."}
+        </p>
+        <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
+          <DialogTrigger asChild>
+            <Button>
+              <FiPlus /> Create Key
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create API key</DialogTitle>
+              <DialogDescription>
+                Name it after the machine or job that will use it.
+              </DialogDescription>
+            </DialogHeader>
+            {plaintext ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-medium text-warning">
+                  Copy it now — you won&apos;t see this again.
+                </p>
+                <code className="break-all rounded-md bg-muted p-3 font-mono text-xs">
+                  {plaintext}
+                </code>
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(plaintext);
+                      setCopied(true);
+                    }}
+                  >
+                    <FiCopy /> {copied ? "Copied" : "Copy key"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : (
+              <form onSubmit={create} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="key-label">Label</Label>
+                  <Input
+                    id="key-label"
+                    required
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    placeholder="training-box-1"
+                  />
+                </div>
+                {error && (
+                  <p role="alert" className="text-sm text-warning">
+                    {error}
+                  </p>
+                )}
+                <DialogFooter>
+                  <Button type="submit" disabled={busy}>
+                    {busy ? "Creating…" : "Create key"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Label</TableHead>
+            {isAdmin && <TableHead>Owner</TableHead>}
+            <TableHead>Created</TableHead>
+            <TableHead>Last used</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-24" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {keys.map((k) => (
+            <TableRow key={k.id}>
+              <TableCell className="font-medium">{k.label}</TableCell>
+              {isAdmin && (
+                <TableCell className="text-xs text-muted-foreground">
+                  {k.ownerEmail}
+                </TableCell>
+              )}
+              <TableCell className="text-xs text-muted-foreground">
+                {new Date(k.createdAt).toLocaleDateString()}
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {k.lastUsedAt
+                  ? new Date(k.lastUsedAt).toLocaleString()
+                  : "never"}
+              </TableCell>
+              <TableCell>
+                {k.revokedAt ? (
+                  <Badge variant="warning">revoked</Badge>
+                ) : (
+                  <Badge variant="secondary">active</Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                {!k.revokedAt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void revoke(k.id, k.label, k.ownerEmail)}
+                  >
+                    Revoke
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+          {keys.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={isAdmin ? 6 : 5}
+                className="py-8 text-center text-muted-foreground"
+              >
+                No keys yet. Create one to connect a training script.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

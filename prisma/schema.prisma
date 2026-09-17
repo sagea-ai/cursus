@@ -37,6 +37,9 @@ enum RunStatus {
 model Org {
   id        String    @id @default(cuid())
   name      String
+  // URL slug for /[org]/... dashboard routes (PRD §7.1). Path-based, not
+  // subdomain — simpler for self-hosters behind arbitrary reverse proxies.
+  slug      String    @unique
   createdAt DateTime  @default(now())
   users     User[]
   projects  Project[]

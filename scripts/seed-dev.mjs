@@ -22,7 +22,7 @@ const client = new Client({ connectionString: process.env["DATABASE_URL"] });
 await client.connect();
 
 await client.query(
-  `INSERT INTO "Org" ("id", "name") VALUES ('seed-org', 'dev')
+  `INSERT INTO "Org" ("id", "name", "slug") VALUES ('seed-org', 'dev', 'dev')
    ON CONFLICT ("id") DO NOTHING`,
 );
 

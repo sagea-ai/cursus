@@ -73,3 +73,50 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cursus
+          POSTGRES_PASSWORD: cursus
+          POSTGRES_DB: cursus_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U cursus -d cursus_e2e"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
+      E2E_DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
+      BASE_URL: http://127.0.0.1:3100
+      SESSION_SECRET: ci-test-secret-not-a-real-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install web deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Prisma generate + migrate
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Production build
+        run: npm run build
+
+      - name: Playwright journey
+        run: npx playwright test

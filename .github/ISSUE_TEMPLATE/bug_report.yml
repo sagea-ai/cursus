@@ -1,0 +1,30 @@
+name: Bug report
+description: Something broken in Cursus
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps, API calls, or SDK snippet.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / deploy target
+      description: Commit SHA or SDK version; docker, Vercel, or local dev?
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals check
+      description: Confirm this isn't in the README's "isn't" list.

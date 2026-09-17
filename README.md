@@ -1,5 +1,8 @@
 # Cursus
 
+[![CI](https://github.com/sagea/cursus/actions/workflows/ci.yml/badge.svg)](https://github.com/sagea/cursus/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+
 A minimal, self-hostable experiment tracker — a barebones Weights & Biases.
 Create a run, log scalars/config over time, view charts, compare runs, manage
 your team. Nothing else. See [PRD.md](./PRD.md) for the full spec and
@@ -23,6 +26,33 @@ docker compose up -d db     # local Postgres
 npx prisma migrate deploy   # schema
 npm install && npm run dev  # dashboard at http://localhost:3000
 ```
+
+### Self-host with Docker (app + Postgres)
+
+```bash
+export SESSION_SECRET="$(openssl rand -base64 32)"
+# Point the app at the compose database — note: docker compose interpolates
+# $DATABASE_URL from a repo .env file if one exists, so export it explicitly.
+export DATABASE_URL="postgresql://cursus:cursus@db:5432/cursus?schema=public"
+docker compose --profile selfhost up --build
+```
+
+This starts Postgres, runs migrations automatically (`migrate` service), then
+the app on http://localhost:3000. Bootstrap the first super admin once:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/bootstrap \
+  -H 'Content-Type: application/json' \
+  -d '{"orgName":"My Org","email":"admin@example.com","password":"…"}'
+```
+
+### Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsagea%2Fcursus&env=DATABASE_URL,SESSION_SECRET)
+
+Point `DATABASE_URL` at a managed Postgres (Vercel Postgres, Neon, or
+Supabase) and set `SESSION_SECRET` to a random value. Run migrations once
+with `npx prisma migrate deploy` against that database.
 
 SDK (distribution name `sagea-cursus` — `cursus` is taken on PyPI):
 

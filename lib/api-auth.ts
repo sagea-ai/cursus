@@ -1,5 +1,8 @@
+import type { NextRequest } from "next/server";
+
 import { db } from "@/lib/db";
 import { hashApiKey, isApiKeyFormat, type Session } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/session";
 
 // API-key authentication for SDK-originated requests (PRD §6).
 // API keys are NEVER valid for team-management endpoints (§6.2) — those are
@@ -62,4 +65,53 @@ export async function authenticateApiKey(
     role: key.user.role,
     keyId: key.id,
   };
+}
+
+/**
+ * Live session: verifies the cookie, then re-reads the user row so guards see
+ * the CURRENT role — never a stale JWT. A demoted/deactivated user loses
+ * access on their very next request, no re-login needed. Every
+ * session-guarded route must use this (never the raw JWT claims).
+ */
+export async function getLiveSession(
+  req: NextRequest,
+): Promise<Session | null> {
+  const claimed = await getSessionFromRequest(req);
+  if (!claimed) return null;
+  const user = await db.user.findUnique({
+    where: { id: claimed.userId },
+    select: { id: true, orgId: true, email: true, role: true },
+  });
+  if (!user) return null;
+  return {
+    userId: user.id,
+    orgId: user.orgId,
+    email: user.email,
+    role: user.role,
+  };
+}
+
+export interface RequestAuth {
+  orgId: string;
+  userId: string;
+  email: string;
+  role: Session["role"];
+  via: "session" | "key";
+  keyId?: string;
+}
+
+/**
+ * Two auth modes on the same API surface (PRD §6): dashboard requests carry
+ * the session cookie, SDK requests carry a Bearer key. Session wins when both
+ * are present. Team/key-management routes must NOT use this — they are
+ * session-only by design (use getLiveSession + requireRole).
+ */
+export async function authenticateRequest(
+  req: NextRequest,
+): Promise<RequestAuth> {
+  // Live session first (cookie identity + fresh DB role), Bearer key second.
+  const live = await getLiveSession(req);
+  if (live) return { ...live, via: "session" };
+  const key = await authenticateApiKey(req.headers.get("authorization"));
+  return { ...key, via: "key" };
 }

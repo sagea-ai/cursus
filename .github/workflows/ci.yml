@@ -25,6 +25,8 @@ jobs:
           --health-retries=10
     env:
       DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus?schema=public
+      RUN_API_TESTS: "1"
+      SESSION_SECRET: ci-test-secret-not-a-real-secret
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +56,9 @@ jobs:
 
       - name: Prisma generate
         run: npx prisma generate
+
+      - name: Prisma migrate (throwaway CI database)
+        run: npx prisma migrate deploy
 
       - name: Web unit tests
         run: npm test

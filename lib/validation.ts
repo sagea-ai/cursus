@@ -56,6 +56,28 @@ export const createKeySchema = z.object({
   label: z.string().min(1).max(128),
 });
 
+export const loginSchema = z.object({
+  email: z.string().email().max(320),
+  password: z.string().min(1).max(256),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+
+export const bootstrapSchema = z.object({
+  orgName: z.string().min(1).max(128),
+  email: z.string().email().max(320),
+  password: z.string().min(8).max(256),
+});
+
+export type BootstrapInput = z.infer<typeof bootstrapSchema>;
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(256),
+});
+
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
+
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(128),
   slug: z.string().min(1).max(128).optional(),

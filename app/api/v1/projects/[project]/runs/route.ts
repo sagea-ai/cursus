@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { authenticateApiKey } from "@/lib/api-auth";
+import { authenticateRequest } from "@/lib/api-auth";
 import { toErrorResponse } from "@/lib/http";
 import { listRuns } from "@/lib/runs";
 
@@ -10,7 +10,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { project } = await ctx.params;
-    const auth = await authenticateApiKey(request.headers.get("authorization"));
+    const auth = await authenticateRequest(request);
     const sp = request.nextUrl.searchParams;
     const cursor = sp.get("cursor") ?? undefined;
     const limitRaw = sp.get("limit");

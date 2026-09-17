@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { authenticateApiKey } from "@/lib/api-auth";
+import { authenticateRequest } from "@/lib/api-auth";
 import { toErrorResponse } from "@/lib/http";
 import { getMetrics } from "@/lib/runs";
 import { metricsQuerySchema } from "@/lib/validation";
@@ -11,7 +11,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { runId } = await ctx.params;
-    const auth = await authenticateApiKey(request.headers.get("authorization"));
+    const auth = await authenticateRequest(request);
     const query = metricsQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );

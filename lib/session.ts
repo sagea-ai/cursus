@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import type { NextResponse } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 
 import type { Session } from "@/lib/auth";
 
@@ -115,4 +115,13 @@ export function setSessionCookie(res: NextResponse, token: string): void {
 
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE, "", { ...cookieOptions(), maxAge: 0 });
+}
+
+/** Session for a Route Handler request (reads the handler's own cookies). */
+export async function getSessionFromRequest(
+  req: NextRequest,
+): Promise<Session | null> {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return verifySessionToken(token);
 }

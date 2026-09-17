@@ -1,7 +1,3 @@
-// @vitest-environment node
-// ^ jose validates keys with `instanceof Uint8Array`; under jsdom the
-// TextEncoder realm differs and every sign() throws. These tests exercise
-// pure crypto — no DOM needed.
 import * as jose from "jose";
 import { beforeEach, describe, expect, it } from "vitest";
 

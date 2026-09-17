@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { authenticateApiKey } from "@/lib/api-auth";
+import { authenticateRequest } from "@/lib/api-auth";
 import { toErrorResponse } from "@/lib/http";
 import { finishRun } from "@/lib/runs";
 import { finishRunSchema } from "@/lib/validation";
@@ -11,7 +11,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { runId } = await ctx.params;
-    const auth = await authenticateApiKey(request.headers.get("authorization"));
+    const auth = await authenticateRequest(request);
     const body = finishRunSchema.parse(await request.json());
     return Response.json(await finishRun(auth, runId, body));
   } catch (e) {

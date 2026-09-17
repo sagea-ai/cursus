@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sagea-cursus"
+version = "0.1.0"
+description = "Cursus experiment-tracking SDK — barebones, self-hostable wandb-style init/log/finish."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "SAGEA Labs" }]
+# Hard dependency: requests only. No optional-dependency creep in v1 (PRD §8.1).
+dependencies = ["requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/sagea/cursus"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sagea_cursus*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: talks to a real local server (opt-in, needs RUN_CURSUS_INTEGRATION=1)",
+]

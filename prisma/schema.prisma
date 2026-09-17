@@ -1,0 +1,124 @@
+// Cursus — Prisma schema (source of truth, see PRD §4).
+//
+// Design notes (do not "fix" without reading PRD §4/§9):
+// - Metric uses BigInt autoincrement PK, NOT cuid(). It is the highest-volume
+//   table by orders of magnitude; a sequential integer PK is smaller and faster
+//   to index than text CUIDs. Every other table uses cuid() for safer,
+//   non-guessable public-facing IDs (run URLs, project URLs). Deliberate
+//   asymmetry, not inconsistency.
+// - Metric rows are insert-only, never updated (no updatedAt on Metric).
+// - config/summary are Json to avoid per-metric-key migrations.
+// - One org per user in v1 (User.orgId is a plain required field, no join
+//   table) — keeps every auth check a single-column comparison.
+// - Postgres is required, not optional (PRD §3): joins + transactions for
+//   runs/metrics/projects/orgs/roles. No relational-DB-free variant.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  MEMBER
+}
+
+enum RunStatus {
+  RUNNING
+  FINISHED
+  CRASHED
+  KILLED
+}
+
+model Org {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  users     User[]
+  projects  Project[]
+  apiKeys   ApiKey[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MEMBER)
+  createdAt    DateTime @default(now())
+  apiKeys      ApiKey[]
+  runsCreated  Run[]
+
+  @@index([orgId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  orgId      String
+  org        Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyHash    String    @unique // never store plaintext; show once on creation
+  label      String // human-readable, e.g. "training-box-1"
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime? // soft revoke, never hard-delete (audit trail)
+
+  @@index([orgId])
+  @@index([userId])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  slug      String
+  name      String
+  createdAt DateTime @default(now())
+  runs      Run[]
+
+  @@unique([orgId, slug])
+}
+
+model Run {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  status      RunStatus @default(RUNNING)
+  config      Json      @default("{}")
+  tags        String[]  @default([])
+  // Denormalized last-known value per metric key, for fast list views.
+  // Keeps the run-list view O(runs), not O(runs × metrics) — see PRD §7.5/§9.
+  // Any PR adding a new "at a glance" run-list column must update summary
+  // where metrics are written, not join Metric at read time.
+  summary     Json      @default("{}")
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  updatedAt   DateTime  @updatedAt // heartbeat target, see PRD §6.3
+
+  metrics Metric[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model Metric {
+  // See header comment: sequential PK is deliberate for this hot table.
+  id       BigInt   @id @default(autoincrement())
+  runId    String
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  key      String
+  step     Int
+  value    Float
+  wallTime DateTime @default(now())
+
+  @@index([runId, key, step])
+}

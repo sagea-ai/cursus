@@ -39,3 +39,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client (regenerate with `npx prisma generate`)
+app/generated/
+
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# python SDK
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.dist/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

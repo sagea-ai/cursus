@@ -1,0 +1,22 @@
+# Postgres 16+ is required, not optional (PRD §3).
+# Local dev: `docker compose up -d db`, then copy .env.example → .env.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cursus
+      POSTGRES_PASSWORD: cursus
+      POSTGRES_DB: cursus
+    ports:
+      - "5432:5432"
+    volumes:
+      - cursus-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cursus -d cursus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cursus-pgdata:

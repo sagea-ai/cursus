@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cursus
 
-## Getting Started
+A minimal, self-hostable experiment tracker — a barebones Weights & Biases.
+Create a run, log scalars/config over time, view charts, compare runs, manage
+your team. Nothing else. See [PRD.md](./PRD.md) for the full spec and
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the design rationale.
 
-First, run the development server:
+## What this is / isn't (honest version)
+
+Cursus replaces W&B for scalar metrics + run metadata with team support
+(super admin / member). It is **not** building: hyperparameter sweeps, a model
+or dataset registry, multi-node run aggregation (log from rank 0 only),
+per-project permissions or custom roles, report/notebook docs, alerting, or
+system-metrics auto-capture. If you need those, Aim and MLflow are excellent
+and occupy similar territory — Cursus trades their scope for a smaller codebase
+and a `docker compose up` deploy story.
+
+## Quickstart (self-host, < 10 min)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env        # point DATABASE_URL at Postgres 16+
+docker compose up -d db     # local Postgres
+npx prisma migrate deploy   # schema
+npm install && npm run dev  # dashboard at http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+SDK (distribution name `sagea-cursus` — `cursus` is taken on PyPI):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pip install sagea-cursus
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```python
+import sagea_cursus as cursus  # keep the wandb-shaped ergonomics via alias
 
-## Learn More
+run = cursus.init(project="demo", config={"lr": 1e-4})
+for step in range(100):
+    cursus.log({"train/loss": 1.0 / (step + 1)}, step=step)
+cursus.finish()
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Repo layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/` — Next.js dashboard + `app/api/v1/` ingestion/team routes
+- `lib/` — one Prisma client (`db.ts`), one auth guard (`auth.ts`), shared
+  Zod validation (`validation.ts`), run services (`runs.ts`), pure
+  downsampling/summary helpers with unit tests
+- `prisma/schema.prisma` — source of truth for the data model (PRD §4)
+- `sdk/` — `sagea_cursus` Python package (`init`/`log`/`finish`/`config`)
+- `e2e/` — Playwright critical-journey suite (M2+)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+TypeScript strict, ESLint + Prettier, `ruff` for the SDK. Every feature ships
+with tests — new code without a test is a review blocker. `npm run
+lint && npm run typecheck && npm test`, plus `pytest` in `sdk/`. UI is
+shadcn/ui + `react-icons` exclusively (`npm run lint:deps` enforces the ban on
+`lucide-react` et al). Conventional Commits (`feat:`/`fix:`/`chore:`)
+recommended.

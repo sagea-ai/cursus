@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cursus
+          POSTGRES_PASSWORD: cursus
+          POSTGRES_DB: cursus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U cursus -d cursus"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install web deps
+        run: npm ci
+
+      - name: Dependency guard (shadcn/react-icons only)
+        run: npm run lint:deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Web unit tests
+        run: npm test
+
+      - name: SDK lint + tests
+        working-directory: sdk
+        run: |
+          pip install -e ".[dev]"
+          ruff check .
+          ruff format --check .
+          pytest -q
+
+      - name: Build
+        run: npm run build

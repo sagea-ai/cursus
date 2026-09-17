@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FiBox } from "react-icons/fi";
 
 import { NewProjectDialog } from "@/components/new-project-dialog";
+import { DeleteProjectButton } from "@/components/delete-project-button";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,28 +66,41 @@ cursus.finish()`}
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {projects.map((p) => (
-            <Link key={p.id} href={`/${org.slug}/${p.slug}/runs`}>
-              <Card className="transition-colors hover:border-primary/60">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FiBox className="size-4 text-accent-soft" />
+            <Card
+              key={p.id}
+              className="transition-colors hover:border-primary/60"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FiBox className="size-4 shrink-0 text-accent-soft" />
+                  <Link
+                    href={`/${org.slug}/${p.slug}/runs`}
+                    className="min-w-0 flex-1 truncate hover:underline"
+                  >
                     {p.name}
-                  </CardTitle>
-                  <CardDescription>
-                    {p.runCount} run{p.runCount === 1 ? "" : "s"} · active{" "}
-                    {timeAgo(p.lastRunAt)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-1.5">
-                  {Object.entries(p.statusCounts).map(([status, n]) => (
-                    <span key={status} className="flex items-center gap-1.5">
-                      <StatusBadge status={status} />
-                      <Badge variant="outline">{n}</Badge>
-                    </span>
-                  ))}
-                </CardContent>
-              </Card>
-            </Link>
+                  </Link>
+                  {session.role === "SUPER_ADMIN" && (
+                    <DeleteProjectButton
+                      orgSlug={org.slug}
+                      projectSlug={p.slug}
+                      projectName={p.name}
+                    />
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {p.runCount} run{p.runCount === 1 ? "" : "s"} · active{" "}
+                  {timeAgo(p.lastRunAt)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-1.5">
+                {Object.entries(p.statusCounts).map(([status, n]) => (
+                  <span key={status} className="flex items-center gap-1.5">
+                    <StatusBadge status={status} />
+                    <Badge variant="outline">{n}</Badge>
+                  </span>
+                ))}
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

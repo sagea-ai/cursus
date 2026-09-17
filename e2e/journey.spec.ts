@@ -106,6 +106,15 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("tab", { name: "Config" }).click();
   await expect(page.getByText("0.01").first()).toBeVisible();
 
+  // Inline rename persists.
+  await page.getByRole("tab", { name: "Charts" }).click();
+  await page.getByRole("button", { name: "Rename run" }).click();
+  await page.getByLabel("Run name").fill("run-a-renamed");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(
+    page.getByRole("heading", { name: "run-a-renamed" }),
+  ).toBeVisible();
+
   // 6. Compare two runs: overlay + config diff (lr differs).
   await page.goto(`/${orgSlug}/e2e-proj/runs/compare?ids=${runIds.join(",")}`);
   await expect(page.getByText("run-a").first()).toBeVisible();

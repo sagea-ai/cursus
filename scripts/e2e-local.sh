@@ -17,4 +17,6 @@ console.log('recreated cursus_e2e');
 "
 
 DATABASE_URL="$E2E_DB_URL" npx prisma migrate deploy
+# next start serves the production build — rebuild so UI/API changes apply.
+npm run build
 E2E_DATABASE_URL="$E2E_DB_URL" npx playwright test "$@"

@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 
 import { ConfigViewer } from "@/components/config-viewer";
 import { RunCharts } from "@/components/run-charts";
+import { RunHeaderEditor } from "@/components/run-header-editor";
 import { StatusBadge } from "@/components/status-badge";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requirePageSession } from "@/lib/page-auth";
 import { getRun } from "@/lib/runs";
@@ -42,13 +42,14 @@ export default async function RunDetailPage({
           / {detail.name}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{detail.name}</h1>
+          <RunHeaderEditor
+            runId={detail.id}
+            initialName={detail.name}
+            initialTags={detail.tags}
+            isAdmin={session.role === "SUPER_ADMIN"}
+            runsPath={`/${org.slug}/${projectSlug}/runs`}
+          />
           <StatusBadge status={detail.status} />
-          {detail.tags.map((t) => (
-            <Badge key={t} variant="outline">
-              {t}
-            </Badge>
-          ))}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           by {detail.createdBy} · started {detail.startedAt.toLocaleString()}

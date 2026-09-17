@@ -1,5 +1,9 @@
 # Postgres 16+ is required, not optional (PRD §3).
-# Local dev: `docker compose up -d db`, then copy .env.example → .env.
+#
+# Local dev (db only, app on host):        `docker compose up -d db`
+# Full self-host cold start (db+migrate):  `docker compose --profile selfhost up --build`
+# (app/migrate are on the `selfhost` profile so plain `up -d db` never
+# demands SESSION_SECRET.)
 services:
   db:
     image: postgres:16-alpine
@@ -17,6 +21,34 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot schema migration; app waits for it (no manual `prisma migrate`).
+  migrate:
+    profiles: ["selfhost"]
+    build:
+      context: .
+      target: builder
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://cursus:cursus@db:5432/cursus?schema=public
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  app:
+    profiles: ["selfhost"]
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://cursus:cursus@db:5432/cursus?schema=public}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set (see .env.example)}
+    ports:
+      - "3000:3000"
 
 volumes:
   cursus-pgdata:

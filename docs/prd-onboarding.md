@@ -15,15 +15,15 @@ whoever claims a fresh instance first owns it, permanently.
 ## 1. Goals
 
 G1: Only the holder of the bootstrap email (`BOOTSTRAP_ADMIN_EMAIL`) can
-    complete onboarding. Everyone else gets a generic refusal that reveals
-    nothing.
+complete onboarding. Everyone else gets a generic refusal that reveals
+nothing.
 G2: A guided first-run page collects name, org name, login email, and a
-    twice-entered password, with a strict, must-acknowledge disclaimer that
-    onboarding happens exactly once.
+twice-entered password, with a strict, must-acknowledge disclaimer that
+onboarding happens exactly once.
 G3: After completion, onboarding is closed permanently: endpoint, page, and
-    an admin-panel status surface all agree it can never run again.
+an admin-panel status surface all agree it can never run again.
 G4: An admin can permanently disable onboarding from the dashboard (defense
-    in depth, and an audit-visible guarantee).
+in depth, and an audit-visible guarantee).
 
 ## 2. Non-goals
 
@@ -83,8 +83,7 @@ still open, a "Disable permanently" button. There is deliberately NO
 re-enable: with users present the endpoint refuses regardless, so a
 re-open control would be a fake affordance — and the only scenario where
 re-opening matters (wiped users table) already implies direct DB access,
-which bypasses the UI anyway. `PATCH {disabled:false}` is rejected with
-409. `GET/PATCH /api/v1/settings/onboarding` are super-admin-only.
+which bypasses the UI anyway. `PATCH {disabled:false}` is rejected with 409. `GET/PATCH /api/v1/settings/onboarding` are super-admin-only.
 
 ## 6. Schema
 

@@ -1,4 +1,5 @@
 # Cursus
+
 [![License](https://img.shields.io/badge/License-SAGEA_Noncommercial-lightgrey.svg)](./LICENSE)
 
 ![Cursus banner](./assets/banner.png)

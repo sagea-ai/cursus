@@ -18,9 +18,7 @@ export async function PATCH(request: NextRequest): Promise<Response> {
   try {
     const session = await getLiveSession(request);
     const body = onboardingSettingsSchema.parse(await request.json());
-    return Response.json(
-      await setOnboardingDisabled(session, body.disabled),
-    );
+    return Response.json(await setOnboardingDisabled(session, body.disabled));
   } catch (e) {
     return toErrorResponse(e);
   }

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
 import { hashApiKey, isApiKeyFormat, type Session } from "@/lib/auth";
+import { isUsablePasswordHash } from "@/lib/password";
 import { getSessionFromRequest } from "@/lib/session";
 
 // API-key authentication for SDK-originated requests (PRD §6).
@@ -80,9 +81,18 @@ export async function getLiveSession(
   if (!claimed) return null;
   const user = await db.user.findUnique({
     where: { id: claimed.userId },
-    select: { id: true, orgId: true, email: true, role: true },
+    select: {
+      id: true,
+      orgId: true,
+      email: true,
+      role: true,
+      passwordHash: true,
+    },
   });
   if (!user) return null;
+  // Deactivation must kill existing sessions too: locked/pending hashes can
+  // never authenticate, so a stale cookie grants nothing anywhere.
+  if (!isUsablePasswordHash(user.passwordHash)) return null;
   return {
     userId: user.id,
     orgId: user.orgId,

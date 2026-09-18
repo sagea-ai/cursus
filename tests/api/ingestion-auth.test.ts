@@ -6,6 +6,7 @@ import {
   GET as runGET,
   PATCH as runPATCH,
 } from "@/app/api/v1/runs/[runId]/route";
+import { POST as logPOST } from "@/app/api/v1/runs/[runId]/log/route";
 import { GET as metricsGET } from "@/app/api/v1/runs/[runId]/metrics/route";
 import { db } from "@/lib/db";
 import { generateApiKey } from "@/lib/auth";
@@ -211,6 +212,47 @@ describe.skipIf(!apiTestsEnabled)("ingestion auth modes", () => {
         { params: Promise.resolve({ runId }) },
       );
       expect(gone.status).toBe(404);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("concurrent batches merge summaries atomically (no lost keys)", async () => {
+    const org = await createTestOrg("ingcon");
+    try {
+      const made = await runsPOST(
+        await authedRequest("/api/v1/runs", org.member, {
+          method: "POST",
+          body: { project: "p", name: "concurrent" },
+        }),
+      );
+      const runId = ((await made.json()) as { run_id: string }).run_id;
+      // Session-authed concurrent batches for distinct keys.
+      const authedBatch = async (key: string, value: number) =>
+        logPOST(
+          await authedRequest(`/api/v1/runs/${runId}/log`, org.member, {
+            method: "POST",
+            body: { points: [{ key, step: 0, value }] },
+          }),
+          { params: Promise.resolve({ runId }) },
+        );
+      await Promise.all([
+        authedBatch("train/loss", 0.5),
+        authedBatch("train/lr", 0.01),
+        authedBatch("eval/acc", 0.9),
+      ]);
+      const res = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, org.member),
+        { params: Promise.resolve({ runId }) },
+      );
+      const { run } = (await res.json()) as {
+        run: { summary: Record<string, number> };
+      };
+      expect(run.summary).toMatchObject({
+        "train/loss": 0.5,
+        "train/lr": 0.01,
+        "eval/acc": 0.9,
+      });
     } finally {
       await org.cleanup();
     }

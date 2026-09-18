@@ -85,20 +85,19 @@ export async function logBatch(
     value: p.value,
     wallTime: p.wall_time ? new Date(p.wall_time) : new Date(),
   }));
-  // Single bulk insert per batch (PRD §9) — never one round-trip per point.
-  await db.metric.createMany({ data: rows });
-  const run = await db.run.findUnique({
-    where: { id: runId },
-    select: { summary: true },
-  });
-  const summary = mergeSummary(
-    (run?.summary ?? {}) as Record<string, number>,
+  // Last value per key wins within the batch (filters non-finite junk).
+  const patch = mergeSummary(
+    {},
     input.points.map((p) => ({ key: p.key, value: p.value })),
   );
-  await db.run.update({
-    where: { id: runId },
-    data: { summary: summary as object, updatedAt: new Date() },
-  });
+  // Single bulk insert per batch (PRD §9) — never one round-trip per point —
+  // plus an ATOMIC jsonb summary merge in the same transaction. A read-then-
+  // write here would lose keys when two flushes for one run interleave
+  // (timer + size triggers); `||` merges server-side with no read at all.
+  await db.$transaction([
+    db.metric.createMany({ data: rows }),
+    db.$executeRaw`UPDATE "Run" SET "summary" = "summary" || ${JSON.stringify(patch)}::jsonb, "updatedAt" = NOW() WHERE "id" = ${runId}`,
+  ]);
   return { logged: rows.length };
 }
 

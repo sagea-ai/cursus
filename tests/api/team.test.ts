@@ -196,6 +196,17 @@ describe.skipIf(!apiTestsEnabled)("team routes", () => {
         await db.run.count({ where: { createdById: org.member.userId } }),
       ).toBe(1);
 
+      // The deactivated member's EXISTING session cookie is dead everywhere —
+      // locked hashes fail the live-session guard, not just login.
+      const deadList = await listGET(
+        await authedRequest("/api/v1/team/members", org.member),
+      );
+      expect(deadList.status).toBe(401);
+      const deadMe = await meGET(
+        await authedRequest("/api/v1/auth/me", org.member),
+      );
+      expect(deadMe.status).toBe(401);
+
       // Self-deactivation → 409.
       const self = await deleteMember(
         await authedRequest(

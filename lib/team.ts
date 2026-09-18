@@ -113,17 +113,32 @@ export async function acceptInvite(
   const claims: InviteClaims | null = await verifyInviteToken(input.token);
   if (!claims) throw new ApiError(400, "invalid or expired invite");
   const user = await db.user.findUnique({ where: { id: claims.userId } });
-  // Single-use: the token is only valid while the account is still pending.
+  // Single-use: the token is only valid while the account is still pending —
+  // enforced ATOMICALLY by the conditional update below, so two concurrent
+  // accepts can't both win (loser gets P2025 → 410).
   if (!user || !isInvitePendingHash(user.passwordHash)) {
     throw new ApiError(410, "invite already used or revoked");
   }
   if (user.email !== claims.email || user.orgId !== claims.orgId) {
     throw new ApiError(400, "invite does not match this account");
   }
-  const updated = await db.user.update({
-    where: { id: user.id },
-    data: { passwordHash: await hashPassword(input.password) },
-  });
+  let updated;
+  try {
+    updated = await db.user.update({
+      where: { id: user.id, passwordHash: INVITE_PENDING_HASH },
+      data: { passwordHash: await hashPassword(input.password) },
+    });
+  } catch (e) {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code: string }).code === "P2025"
+    ) {
+      throw new ApiError(410, "invite already used or revoked");
+    }
+    throw e;
+  }
   const session: Session = {
     userId: updated.id,
     orgId: updated.orgId,
@@ -168,11 +183,10 @@ export async function inviteMember(
 ): Promise<{ user: PublicUser; inviteUrl: string }> {
   requireRole(session, "SUPER_ADMIN");
   const existing = await db.user.findUnique({ where: { email } });
+  // Emails are globally unique: 409 reveals address existence to a super
+  // admin. Accepted v1 tradeoff — emails are identifiers, not secrets, and
+  // the message is identical whether the address is in-org or elsewhere.
   if (existing) {
-    // Cross-org email leak? Emails are globally unique; revealing existence
-    // to a super admin of ANOTHER org leaks a bit. Scope the check to the
-    // caller's org for same-org idempotency, global otherwise → 409 either
-    // way with the same message.
     throw new ApiError(409, "email already registered");
   }
   const user = await db.user.create({
@@ -224,7 +238,12 @@ export async function setMemberRole(
   return toPublicUser(updated);
 }
 
-/** Deactivate: lock the account + revoke keys, keep the row for attribution. */
+/** Deactivate: lock the account + revoke keys, keep the row for attribution.
+ * One-way in v1: promoting a locked account does NOT unlock it (the sentinel
+ * survives role changes, and locked hashes fail every guard) — there is no
+ * reactivation path short of direct DB access. Deactivation is deliberate and
+ * confirmed in the UI, so this is a safety property, not a gap.
+ */
 export async function deactivateMember(
   session: Session | null,
   targetUserId: string,

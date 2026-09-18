@@ -91,7 +91,7 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(128),
-  slug: z.string().min(1).max(128).optional(),
+  slug: projectSlugSchema.optional(),
 });
 
 export const metricsQuerySchema = z.object({

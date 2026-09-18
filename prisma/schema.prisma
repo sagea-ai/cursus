@@ -44,6 +44,7 @@ model Org {
   users     User[]
   projects  Project[]
   apiKeys   ApiKey[]
+  groups    Group[]
 }
 
 // Deployment-wide singleton flags (one row, id = "global"). Owns the
@@ -67,6 +68,8 @@ model User {
   apiKeys      ApiKey[]
   runsCreated  Run[]
   artifactsCreated Artifact[]
+  groupsCreated Group[]
+  groupMemberships GroupMember[]
 
   @@index([orgId])
 }
@@ -125,8 +128,15 @@ model Run {
   metrics     Metric[]
   artifactsProduced ArtifactVersion[]
 
+  // Optional group scope. NULL = org-wide (visible to every member, the
+  // pre-groups behavior). Non-null = visible only to group members and
+  // super admins (see runVisibilityFilter in lib/groups.ts).
+  groupId     String?
+  group       Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
   @@index([projectId])
   @@index([status])
+  @@index([groupId])
 }
 
 model Metric {
@@ -140,6 +150,45 @@ model Metric {
   wallTime DateTime @default(now())
 
   @@index([runId, key, step])
+}
+
+// --- Groups (scoped visibility) --------------------------------------------
+// A group is a named subset of an org with its own members and runs.
+// Visibility rule (enforced in lib/groups.ts runVisibilityFilter, applied on
+// EVERY run read path): org-wide runs (groupId NULL) are visible to all
+// members; grouped runs only to group members and super admins. This is the
+// entire permissions model — no custom roles, no per-project ACLs.
+
+model Group {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  slug        String
+  name        String
+  description String   @default("")
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  members     GroupMember[]
+  runs        Run[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId String
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([groupId, userId])
+  @@index([userId])
+
+  @@map("group_members")
 }
 
 // --- Artifacts (v1, scoped) ------------------------------------------------

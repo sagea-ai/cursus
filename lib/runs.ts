@@ -16,6 +16,43 @@ import { requireRole, type Session } from "@/lib/auth";
 
 export const API_VERSION = 1;
 
+/**
+ * Minutes of heartbeat/log silence after which a RUNNING run is declared
+ * dead (PRD dead-run detection). The SDK heartbeats every 30s independently
+ * of training progress, so 15 minutes means 30 consecutive missed beats:
+ * short pauses (GC, suspend, slow eval) can never trip it, while a killed
+ * process surfaces within a quarter hour. No cron or job queue in v1 —
+ * staleness is evaluated lazily on read (list/get), which is exactly when
+ * the UI needs the answer.
+ */
+export const STALE_RUN_MINUTES = 15;
+
+function staleCutoff(): Date {
+  return new Date(Date.now() - STALE_RUN_MINUTES * 60_000);
+}
+
+/** Flip stale RUNNING runs in a project to CRASHED. Returns rows affected. */
+export async function markStaleRuns(
+  auth: { orgId: string },
+  projectId: string,
+): Promise<number> {
+  const project = await db.project.findFirst({
+    where: { id: projectId, orgId: auth.orgId },
+    select: { id: true },
+  });
+  if (!project) throw new KeyAuthError(404, "project not found");
+  const res = await db.run.updateMany({
+    where: {
+      projectId: project.id,
+      status: "RUNNING",
+      updatedAt: { lt: staleCutoff() },
+    },
+    // finishedAt approximates detection time; last sign of life is updatedAt.
+    data: { status: "CRASHED", finishedAt: new Date() },
+  });
+  return res.count;
+}
+
 export function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -159,6 +196,8 @@ export async function listRuns(
     select: { id: true },
   });
   if (!project) throw new KeyAuthError(404, "project not found");
+  // Dead-run sweep first, so the page below never shows a stale RUNNING.
+  await markStaleRuns(auth, project.id);
   // Cursor-based pagination on (startedAt, id) — stays flat as history grows;
   // OFFSET/LIMIT degrades linearly on this unbounded table (PRD §9).
   const rows = await db.run.findMany({
@@ -246,12 +285,25 @@ export async function getRun(
       config: true,
       summary: true,
       startedAt: true,
+      updatedAt: true,
       finishedAt: true,
       createdBy: { select: { email: true } },
       project: { select: { id: true, slug: true, name: true } },
     },
   });
   if (!run) throw new KeyAuthError(404, "run not found");
+  // Same dead-run sweep as listRuns, scoped to this one run.
+  let status = run.status;
+  let finishedAt = run.finishedAt;
+  if (run.status === "RUNNING" && run.updatedAt < staleCutoff()) {
+    const flipped = await db.run.update({
+      where: { id: run.id },
+      data: { status: "CRASHED", finishedAt: new Date() },
+      select: { status: true, finishedAt: true },
+    });
+    status = flipped.status;
+    finishedAt = flipped.finishedAt;
+  }
   const keyRows = await db.metric.groupBy({
     by: ["key"],
     where: { runId },
@@ -259,13 +311,13 @@ export async function getRun(
   return {
     id: run.id,
     name: run.name,
-    status: run.status,
+    status,
     tags: run.tags,
     config: run.config,
     summary: run.summary,
     createdBy: run.createdBy.email,
     startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
+    finishedAt,
     project: run.project,
     keys: keyRows.map((k) => k.key).sort(),
   };

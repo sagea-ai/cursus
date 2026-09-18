@@ -26,7 +26,11 @@ export default async function KeysPage({
         <p className="text-xs text-muted-foreground">{org.name}</p>
         <h1 className="text-2xl font-semibold">API Keys</h1>
       </div>
-      <KeysManager keys={rows} isAdmin={session.role === "SUPER_ADMIN"} />
+      <KeysManager
+        keys={rows}
+        isAdmin={session.role === "SUPER_ADMIN"}
+        orgSlug={org.slug}
+      />
     </main>
   );
 }

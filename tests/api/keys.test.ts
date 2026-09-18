@@ -195,7 +195,8 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
     }
   });
 
-  it("member cannot rotate another member's key", async () => {    const org = await createTestOrg("keys");
+  it("member cannot rotate another member's key", async () => {
+    const org = await createTestOrg("keys");
     const org2 = await createTestOrg("keysB");
     try {
       const created = await createPOST(
@@ -235,9 +236,7 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
         }),
         { params: Promise.resolve({ keyId }) },
       );
-      const replacementId = (
-        (await rotated.json()).key as { id: string }
-      ).id;
+      const replacementId = ((await rotated.json()).key as { id: string }).id;
 
       const oldPage = (await (
         await historyGET(
@@ -264,18 +263,13 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
           { params: Promise.resolve({ keyId: replacementId }) },
         )
       ).json()) as { events: { action: string }[] };
-      expect(newPage.events.map((e) => e.action)).toEqual([
-        "api_key.rotated",
-      ]);
+      expect(newPage.events.map((e) => e.action)).toEqual(["api_key.rotated"]);
 
       // Another member's key history → 403; anon → 401; missing → 404.
       const other = await createTestOrg("keysB");
       try {
         const theirs = await historyGET(
-          await authedRequest(
-            `/api/v1/keys/${keyId}/history`,
-            other.member,
-          ),
+          await authedRequest(`/api/v1/keys/${keyId}/history`, other.member),
           { params: Promise.resolve({ keyId }) },
         );
         expect(theirs.status).toBe(404);

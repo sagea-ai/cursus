@@ -116,7 +116,7 @@ export async function revokeKey(
  * Rotate ("reshuffle") a key: issue a replacement and revoke the old one
  * atomically. Same ownership rule as revoke. The new plaintext is returned
  * exactly once, like creation.
- */export async function rotateKey(
+ */ export async function rotateKey(
   session: Session | null,
   keyId: string,
 ): Promise<{ key: PublicKey; plaintext: string }> {

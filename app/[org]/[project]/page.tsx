@@ -183,6 +183,7 @@ export default async function ProjectOverviewPage({
             <KeysManager
               keys={keyRows}
               isAdmin={session.role === "SUPER_ADMIN"}
+              orgSlug={org.slug}
             />
           </div>
         </TabsContent>

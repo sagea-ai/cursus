@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { FiCopy, FiPlus } from "react-icons/fi";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { KeyHistoryDialog } from "@/components/key-history-dialog";
 import {
   Dialog,
   DialogContent,
@@ -39,9 +39,11 @@ export interface KeyRow {
 export function KeysManager({
   keys,
   isAdmin,
+  orgSlug,
 }: {
   keys: KeyRow[];
   isAdmin: boolean;
+  orgSlug: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -135,7 +137,6 @@ export function KeysManager({
             : "Your active keys. Use one per machine as CURSUS_API_KEY."}
         </p>
         <span className="flex shrink-0 gap-2">
-          <KeyHistoryDialog />
           <Dialog
             open={open}
             onOpenChange={(o) => (o ? setOpen(true) : close())}
@@ -261,6 +262,11 @@ export function KeysManager({
                       }
                     >
                       Revoke
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/${orgSlug}/settings/keys/${k.id}`}>
+                        History
+                      </Link>
                     </Button>
                   </span>
                 </TableCell>

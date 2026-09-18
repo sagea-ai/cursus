@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { OnboardingForm } from "@/components/onboarding-form";
-import { db } from "@/lib/db";
+import { isOnboardingOpen } from "@/lib/settings";
 
 // Must render per-request: the closed/open decision depends on live DB state
 // and server env. (Without this, Next statically prerenders the page at
@@ -13,15 +13,7 @@ export const dynamic = "force-dynamic";
 // login; the expected email address is never rendered. The org-name
 // suggestion comes straight from env (server-side only, safe to pass down).
 export default async function OnboardingPage() {
-  const [settings, userCount] = await Promise.all([
-    db.globalSettings.upsert({
-      where: { id: "global" },
-      update: {},
-      create: { id: "global" },
-    }),
-    db.user.count(),
-  ]);
-  if (settings.onboardingDisabled || userCount > 0) redirect("/login");
+  if (!(await isOnboardingOpen())) redirect("/login");
 
   const emailConfigured = Boolean(process.env["BOOTSTRAP_ADMIN_EMAIL"]?.trim());
   if (!emailConfigured) {

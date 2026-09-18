@@ -52,16 +52,19 @@ in depth, and an audit-visible guarantee).
    exist → env email configured. Closed/misconfigured states redirect to
    `/login` (completed) or render a "not configured" card (missing env).
    The expected email address is never rendered or echoed.
-2. Step 1: the claimant enters their email (client-side step only).
-3. Step 2: name, role (SUPER_ADMIN preselected and locked, with a note that
+2. First-run routing: `/` and `/login` redirect to `/onboarding` while it
+   is open (shared `isOnboardingOpen()` helper — login can never succeed
+   with zero users, so showing it first strands new deployments).
+3. Step 1: the claimant enters their email (client-side step only).
+4. Step 2: name, role (SUPER_ADMIN preselected and locked, with a note that
    the first account must own the org), org name (prefilled suggestion,
    editable), login email (carried from step 1, read-only), password +
    confirm (min 8, must match, checked client-side AND server-side length).
-4. Disclaimer block + required checkbox: "Onboarding can be completed
+5. Disclaimer block + required checkbox: "Onboarding can be completed
    exactly once. After this account is created, this page is permanently
    disabled and new accounts can only be created by invitation from a
    super admin."
-5. Submit → `POST /api/v1/auth/bootstrap` → 201 sets the session cookie →
+6. Submit → `POST /api/v1/auth/bootstrap` → 201 sets the session cookie →
    land on the new org's projects page.
 
 Server checks on POST (all must pass, in this order):

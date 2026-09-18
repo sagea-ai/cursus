@@ -6,6 +6,7 @@ import {
 } from "@/app/api/v1/settings/onboarding/route";
 import { POST as bootstrapPOST } from "@/app/api/v1/auth/bootstrap/route";
 import { db } from "@/lib/db";
+import { isOnboardingOpen } from "@/lib/settings";
 import {
   apiRequest,
   apiTestsEnabled,
@@ -15,6 +16,17 @@ import {
 } from "../helpers";
 
 describe.skipIf(!apiTestsEnabled)("onboarding settings", () => {
+  it("isOnboardingOpen is false once any user exists", async () => {
+    // The true case (empty DB) cannot run in this shared suite — it is
+    // covered by the E2E journey, which loads /onboarding on a fresh DB.
+    const org = await createTestOrg("settings");
+    try {
+      expect(await isOnboardingOpen()).toBe(false);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
   it("admin reads status; member → 403; anon → 401", async () => {
     const org = await createTestOrg("settings");
     try {

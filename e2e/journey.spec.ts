@@ -40,6 +40,13 @@ test("critical journey: bootstrap to restricted member", async ({
   page,
   request,
 }) => {
+  // 0. Fresh deployment: / and /login both route to onboarding (login can
+  // never succeed with zero users, so showing it first strands newcomers).
+  await page.goto("/");
+  await expect(page).toHaveURL("/onboarding");
+  await page.goto("/login");
+  await expect(page).toHaveURL("/onboarding");
+
   // 1. Onboarding UI on the fresh DB: wrong email rejected generically,
   // correct email continues; disclaimer checkbox gates submit.
   await page.goto("/onboarding");

@@ -30,7 +30,13 @@ class FakeClient:
 
 
 def test_public_surface_is_barebones() -> None:
-    assert sorted(cursus.__all__) == ["config", "finish", "init", "log"]
+    assert sorted(cursus.__all__) == [
+        "config",
+        "finish",
+        "init",
+        "log",
+        "log_artifact",
+    ]
 
 
 def test_batcher_flushes_on_max_points() -> None:
@@ -81,6 +87,59 @@ def test_log_never_raises_even_when_transport_explodes() -> None:
         for i in range(5):  # must not raise
             real.log({"train/loss": 0.5}, step=i)
         real._batcher.close()
+
+
+def test_log_artifact_warns_without_a_run() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert cursus.log_artifact("m", ["nope.bin"]) is None
+    assert any("before init" in str(w.message) for w in caught)
+
+
+def test_log_artifact_uploads_and_never_raises(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from sagea_cursus._client import CursusClient
+
+    weights = tmp_path / "best.pt"
+    weights.write_bytes(b"fake-bytes")
+
+    sent: dict = {}
+
+    class FakeSession:
+        def post(self, url, data=None, files=None, timeout=None):
+            sent.update(url=url, data=data, files=files)
+
+            class Resp:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"ok": True}
+
+            return Resp()
+
+    client = CursusClient(api_key="cursus_test", base_url="http://x")
+    client._session = FakeSession()  # type: ignore[method-assign]
+    out = client.create_artifact_version(name="m", files=[("best.pt", b"fake-bytes")], run_id="r1")
+    assert out == {"ok": True}
+    assert sent["url"].endswith("/api/v1/artifacts")
+    assert sent["data"]["run_id"] == "r1"
+    assert sent["files"][0][0] == "files"
+
+    # Missing files warn instead of raising (with a run set so we reach them).
+    from types import SimpleNamespace
+
+    class FakeUploader:
+        def create_artifact_version(self, **kwargs):
+            raise AssertionError("should not be called without files")
+
+    run_mod._set_current(SimpleNamespace(id="r", _client=FakeUploader()))
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert cursus.log_artifact("m", [str(tmp_path / "gone.bin")]) is None
+        assert any("no readable files" in str(w.message) for w in caught)
+    finally:
+        run_mod._set_current(None)
 
 
 def test_resolve_base_url_precedence(monkeypatch) -> None:  # type: ignore[no-untyped-def]

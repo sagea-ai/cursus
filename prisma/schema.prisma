@@ -63,9 +63,10 @@ model User {
   name         String   @default("")
   passwordHash String
   role         Role     @default(MEMBER)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   apiKeys      ApiKey[]
   runsCreated  Run[]
+  artifactsCreated Artifact[]
 
   @@index([orgId])
 }
@@ -94,6 +95,7 @@ model Project {
   name      String
   createdAt DateTime @default(now())
   runs      Run[]
+  artifacts Artifact[]
 
   @@unique([orgId, slug])
 }

@@ -129,3 +129,31 @@ class CursusClient:
             timeout=self.timeout,
         )
         resp.raise_for_status()
+
+    def create_artifact_version(
+        self,
+        name: str,
+        files: list[tuple[str, bytes]],
+        run_id: str | None = None,
+        artifact_type: str = "model",
+        description: str = "",
+    ) -> dict[str, Any]:
+        """Upload one version of an artifact (multipart, requests only)."""
+        data = {
+            "name": name,
+            "type": artifact_type,
+            "description": description,
+        }
+        if run_id:
+            data["run_id"] = run_id
+        multipart = [
+            ("files", (path, content, "application/octet-stream")) for path, content in files
+        ]
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/artifacts",
+            data=data,
+            files=multipart,
+            timeout=max(self.timeout, 120.0),
+        )
+        resp.raise_for_status()
+        return resp.json()

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { POST as logPOST } from "@/app/api/v1/runs/[runId]/log/route";
 import { GET as listGET, POST as createPOST } from "@/app/api/v1/keys/route";
 import { DELETE as revokeDELETE } from "@/app/api/v1/keys/[keyId]/route";
+import { POST as rotatePOST } from "@/app/api/v1/keys/[keyId]/rotate/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
 import {
   apiRequest,
@@ -122,6 +123,98 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
       );
       expect(res.status).toBe(404);
     } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("rotate swaps the secret: new works, old dies", async () => {
+    const org = await createTestOrg("keys");
+    try {
+      const created = await createPOST(
+        await authedRequest("/api/v1/keys", org.member, {
+          method: "POST",
+          body: { label: "rot-me" },
+        }),
+      );
+      const first = (await created.json()) as {
+        key: { id: string };
+        plaintext: string;
+      };
+      const rotated = await rotatePOST(
+        await authedRequest(`/api/v1/keys/${first.key.id}/rotate`, org.member, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ keyId: first.key.id }) },
+      );
+      expect(rotated.status).toBe(201);
+      const second = (await rotated.json()) as {
+        key: { id: string; label: string };
+        plaintext: string;
+      };
+      expect(second.key.id).not.toBe(first.key.id);
+      expect(second.key.label).toBe("rot-me");
+      expect(second.plaintext).toMatch(/^cursus_/);
+
+      // New key logs; old key is dead.
+      const okRun = await runsPOST(
+        apiRequest("/api/v1/runs", {
+          method: "POST",
+          body: { project: "p" },
+          apiKey: second.plaintext,
+        }),
+      );
+      expect(okRun.status).toBe(201);
+      const deadRun = await runsPOST(
+        apiRequest("/api/v1/runs", {
+          method: "POST",
+          body: { project: "p" },
+          apiKey: first.plaintext,
+        }),
+      );
+      expect(deadRun.status).toBe(401);
+
+      // Rotating an already-revoked key → 409; another user's → 403.
+      const again = await rotatePOST(
+        await authedRequest(`/api/v1/keys/${first.key.id}/rotate`, org.member, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ keyId: first.key.id }) },
+      );
+      expect(again.status).toBe(409);
+      const other = await rotatePOST(
+        await authedRequest(`/api/v1/keys/${second.key.id}/rotate`, org.admin, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ keyId: second.key.id }) },
+      );
+      // Admins may rotate anyone's key.
+      expect(other.status).toBe(201);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("member cannot rotate another member's key", async () => {
+    const org = await createTestOrg("keys");
+    const org2 = await createTestOrg("keysB");
+    try {
+      const created = await createPOST(
+        await authedRequest("/api/v1/keys", org2.member, {
+          method: "POST",
+          body: { label: "theirs" },
+        }),
+      );
+      const keyId = ((await created.json()).key as { id: string }).id;
+      // Cross-org reads as missing (no key-ID oracle across orgs).
+      const cross = await rotatePOST(
+        await authedRequest(`/api/v1/keys/${keyId}/rotate`, org.member, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ keyId }) },
+      );
+      expect(cross.status).toBe(404);
+    } finally {
+      await org2.cleanup();
       await org.cleanup();
     }
   });

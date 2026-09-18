@@ -84,3 +84,48 @@ export async function revokeKey(
   });
   return { id: row.id };
 }
+
+/**
+ * Rotate ("reshuffle") a key: issue a replacement and revoke the old one
+ * atomically. Same ownership rule as revoke. The new plaintext is returned
+ * exactly once, like creation.
+ */
+export async function rotateKey(
+  session: Session | null,
+  keyId: string,
+): Promise<{ key: PublicKey; plaintext: string }> {
+  requireRole(session, "MEMBER");
+  const row = await db.apiKey.findFirst({
+    where: { id: keyId, orgId: session.orgId },
+    select: { id: true, userId: true, label: true, revokedAt: true },
+  });
+  if (!row) throw new ApiError(404, "key not found");
+  if (row.userId !== session.userId && session.role !== "SUPER_ADMIN") {
+    throw new ApiError(403, "cannot rotate another user's key");
+  }
+  if (row.revokedAt) throw new ApiError(409, "key is already revoked");
+  const { plaintext, keyHash } = generateApiKey();
+  const now = new Date();
+  const created = await db.apiKey.create({
+    data: {
+      orgId: session.orgId,
+      userId: row.userId,
+      keyHash,
+      label: row.label,
+    },
+  });
+  await db.apiKey.update({
+    where: { id: row.id },
+    data: { revokedAt: now },
+  });
+  return {
+    key: {
+      id: created.id,
+      label: created.label,
+      createdAt: created.createdAt,
+      lastUsedAt: created.lastUsedAt,
+      revokedAt: created.revokedAt,
+    },
+    plaintext,
+  };
+}

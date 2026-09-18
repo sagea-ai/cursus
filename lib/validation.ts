@@ -69,6 +69,25 @@ export const renameProjectSchema = z.object({
   name: z.string().min(1).max(128),
 });
 
+export const artifactNameSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._-]+$/, {
+    message: "letters, numbers, dot, underscore, dash only (URL-safe)",
+  });
+
+// Multipart upload fields arrive as strings — validated here, files separately.
+export const artifactUploadFieldsSchema = z.object({
+  name: artifactNameSchema,
+  type: z.string().min(1).max(64).optional().default("model"),
+  description: z.string().max(2000).optional().default(""),
+  project: z.string().min(1).max(128).optional(),
+  run_id: z.string().min(1).optional(),
+});
+
+export type ArtifactUploadFields = z.infer<typeof artifactUploadFieldsSchema>;
+
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(320),
 });

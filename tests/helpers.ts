@@ -77,9 +77,13 @@ export async function createTestOrg(tag: string): Promise<TestOrg> {
       role: "MEMBER",
     },
     cleanup: async () => {
-      // Runs reference their creator with a Restrict FK (attribution must
-      // never cascade away), so delete runs before the org cascade.
+      // Runs and artifacts reference their creators with Restrict FKs
+      // (attribution/history must never cascade away), so delete them
+      // before the org cascade removes users/projects.
       await db.run.deleteMany({ where: { project: { orgId: org.id } } });
+      await db.artifact.deleteMany({
+        where: { project: { orgId: org.id } },
+      });
       await db.org.delete({ where: { id: org.id } });
     },
   };

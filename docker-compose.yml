@@ -47,6 +47,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://cursus:cursus@db:5432/cursus?schema=public}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set (see .env.example)}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?BOOTSTRAP_ADMIN_EMAIL must be set (see .env.example)}
+      BOOTSTRAP_ORG_NAME: ${BOOTSTRAP_ORG_NAME:-cursus}
     ports:
       - "3000:3000"
 

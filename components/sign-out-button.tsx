@@ -6,7 +6,13 @@ import { FiLogOut } from "react-icons/fi";
 
 import { Button } from "@/components/ui/button";
 
-export function SignOutButton({ email }: { email: string }) {
+export function SignOutButton({
+  email,
+  name,
+}: {
+  email: string;
+  name: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -19,8 +25,11 @@ export function SignOutButton({ email }: { email: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {email}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium">{name}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {email}
+        </span>
       </span>
       <Button
         variant="ghost"

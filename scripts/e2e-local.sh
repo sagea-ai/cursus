@@ -19,4 +19,7 @@ console.log('recreated cursus_e2e');
 DATABASE_URL="$E2E_DB_URL" npx prisma migrate deploy
 # next start serves the production build — rebuild so UI/API changes apply.
 npm run build
+# The journey drives real onboarding: the bootstrap identity comes from env.
+export BOOTSTRAP_ADMIN_EMAIL="${BOOTSTRAP_ADMIN_EMAIL:-admin@e2e.test}"
+export BOOTSTRAP_ORG_NAME="${BOOTSTRAP_ORG_NAME:-E2E Org}"
 E2E_DATABASE_URL="$E2E_DB_URL" npx playwright test "$@"

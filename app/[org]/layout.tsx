@@ -1,8 +1,15 @@
 import Link from "next/link";
-import { FiActivity, FiFolder, FiKey, FiUsers } from "react-icons/fi";
+import {
+  FiActivity,
+  FiFolder,
+  FiKey,
+  FiSettings,
+  FiUsers,
+} from "react-icons/fi";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { Badge } from "@/components/ui/badge";
+import { db } from "@/lib/db";
 import { requirePageSession } from "@/lib/page-auth";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +18,8 @@ const NAV = [
   { href: "team", label: "Team", icon: FiUsers },
   { href: "settings/keys", label: "API Keys", icon: FiKey },
 ];
+
+const ADMIN_NAV = [{ href: "settings", label: "Settings", icon: FiSettings }];
 
 export default async function OrgLayout({
   children,
@@ -21,6 +30,13 @@ export default async function OrgLayout({
 }) {
   const { org: orgSlug } = await params;
   const { session, org } = await requirePageSession(orgSlug);
+  const isAdmin = session.role === "SUPER_ADMIN";
+  const me = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { name: true },
+  });
+  const displayName = me?.name || session.email;
+  const nav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV;
 
   return (
     <div className="flex min-h-screen">
@@ -34,7 +50,7 @@ export default async function OrgLayout({
             <p className="text-xs text-muted-foreground">Cursus</p>
           </div>
         </div>
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <Link
             key={item.href}
             href={`/${org.slug}/${item.href}`}
@@ -50,7 +66,7 @@ export default async function OrgLayout({
           <Badge variant="secondary" className="w-fit">
             {session.role === "SUPER_ADMIN" ? "super admin" : "member"}
           </Badge>
-          <SignOutButton email={session.email} />
+          <SignOutButton email={session.email} name={displayName} />
         </div>
       </aside>
       <div className="min-w-0 flex-1">{children}</div>

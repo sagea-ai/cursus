@@ -1,12 +1,17 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 // Full critical journey on a FRESH database (PRD §10.2):
-// bootstrap → login → project → API key → SDK-style run logging → run list →
-// detail/charts → second run → compare → invite member → accept → restricted
-// permissions. Requires E2E_DATABASE_URL (throwaway postgres) + a prior
-// `npm run build`; the config starts `next start` on :3100 automatically.
+// onboarding UI → login → project → API key → SDK-style run logging →
+// run list → detail/charts → rename → compare → invite member → accept →
+// restricted permissions. Requires E2E_DATABASE_URL (throwaway postgres);
+// scripts/e2e-local.sh rebuilds and sets BOOTSTRAP_ADMIN_EMAIL to match
+// ADMIN below. The config starts `next start` on :3100 automatically.
 
-const ADMIN = { email: "admin@e2e.test", password: "admin-password-1" };
+const ADMIN = {
+  name: "E2E Admin",
+  email: "admin@e2e.test",
+  password: "admin-password-1",
+};
 const MEMBER = { email: "member@e2e.test", password: "member-password-1" };
 
 function sessionCookie(setCookie: string | null): string {
@@ -35,12 +40,40 @@ test("critical journey: bootstrap to restricted member", async ({
   page,
   request,
 }) => {
-  // 1. Bootstrap the org (only possible on an empty users table).
-  const boot = await request.post("/api/v1/auth/bootstrap", {
-    data: { orgName: "E2E Org", email: ADMIN.email, password: ADMIN.password },
-  });
-  expect(boot.ok()).toBeTruthy();
-  const orgSlug = ((await boot.json()).org as { slug: string }).slug;
+  // 1. Onboarding UI on the fresh DB: wrong email rejected generically,
+  // correct email continues; disclaimer checkbox gates submit.
+  await page.goto("/onboarding");
+  await page.getByLabel("Bootstrap email").fill("intruder@e2e.test");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Your name").fill(ADMIN.name);
+  await page.getByLabel("Organization name").fill("E2E Org");
+  await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
+  await page.getByLabel("Confirm password").fill(ADMIN.password);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await expect(page.getByText("not authorized for onboarding")).toBeVisible();
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByLabel("Bootstrap email").fill(ADMIN.email);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Your name").fill(ADMIN.name);
+  // Org name comes prefilled from BOOTSTRAP_ORG_NAME.
+  await expect(page.getByLabel("Organization name")).toHaveValue("E2E Org");
+  await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
+  await page.getByLabel("Confirm password").fill("mismatch-password");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await expect(page.getByText("Passwords do not match")).toBeVisible();
+  await page.getByLabel("Confirm password").fill(ADMIN.password);
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await expect(page).toHaveURL(/\/[^/]+\/projects/);
+  const orgSlug = page.url().split("/").slice(-2, -1)[0]!;
+
+  // Onboarding is now permanently closed: an anonymous revisit lands on
+  // login (a logged-in admin would bounce login → projects instead).
+  await page.context().clearCookies();
+  await page.goto("/onboarding");
+  await expect(page).toHaveURL("/login");
 
   // 2. Login via UI → empty projects with the SDK snippet.
   await page.goto("/login");

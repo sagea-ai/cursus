@@ -4,12 +4,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { AuthShell } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
-// Split-screen login modeled on the SAGEA platform login: brand panel with
-// the form card on the left, full-height artwork on the right. Deliberately
-// light-themed — a standalone route, not part of the dark dashboard.
+const inputClass =
+  "h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900";
+
+// Split-screen login modeled on the SAGEA platform login.
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
@@ -37,21 +39,16 @@ export function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen bg-[#f4f4f5] text-neutral-900">
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-        <Image
-          src="/sagea_banner.png"
-          alt="SAGEA"
-          width={600}
-          height={163}
-          className="h-9 w-auto invert"
-          priority
-        />
-        <p className="mt-4 text-[15px] font-medium text-neutral-700">
-          Experiment tracking by SAGEA
+    <AuthShell
+      tagline="Experiment tracking by SAGEA"
+      footnote={
+        <p>
+          By continuing, you agree to the SAGEA Noncommercial License. Cursus is
+          free to use and adapt, but not for commercial sale.
         </p>
-
-        <div className="mt-10 w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
+      }
+      card={
+        <>
           <div className="flex flex-col items-center text-center">
             <Image
               src="/cursos.svg"
@@ -79,7 +76,7 @@ export function LoginForm() {
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                className={inputClass}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -92,7 +89,7 @@ export function LoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                className={inputClass}
               />
             </div>
             {error && (
@@ -109,30 +106,18 @@ export function LoginForm() {
             </Button>
           </form>
 
-          <p className="text-center text-sm mt-4 text-neutral-600">
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-neutral-200" />
+            <span className="h-px flex-1 bg-neutral-200" />
+          </div>
+          <p className="text-center text-sm text-neutral-600">
             Need an account?{" "}
             <span className="font-medium text-neutral-900">
               Ask your super admin for an invite
             </span>
           </p>
-        </div>
-
-        <p className="mt-5 max-w-md text-center text-xs leading-relaxed text-neutral-500">
-          By continuing, you agree to the SAGEA Noncommercial License. Cursus is
-          free to use and adapt, but not for commercial sale.
-        </p>
-      </div>
-
-      <div className="relative hidden flex-1 lg:block">
-        <Image
-          src="/artwork.webp"
-          alt=""
-          fill
-          sizes="50vw"
-          className="object-cover"
-          priority
-        />
-      </div>
-    </main>
+        </>
+      }
+    />
   );
 }

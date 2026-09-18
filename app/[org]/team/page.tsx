@@ -14,6 +14,7 @@ export default async function TeamPage({
   const rows: MemberRow[] = members.map((m) => ({
     id: m.id,
     email: m.email,
+    name: m.name,
     role: m.role,
     createdAt: m.createdAt.toISOString(),
   }));

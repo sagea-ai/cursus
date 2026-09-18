@@ -32,6 +32,18 @@ export default defineConfig({
           ...(process.env["E2E_DATABASE_URL"]
             ? { DATABASE_URL: process.env["E2E_DATABASE_URL"] as string }
             : {}),
+          ...(process.env["BOOTSTRAP_ADMIN_EMAIL"]
+            ? {
+                BOOTSTRAP_ADMIN_EMAIL: process.env[
+                  "BOOTSTRAP_ADMIN_EMAIL"
+                ] as string,
+              }
+            : {}),
+          ...(process.env["BOOTSTRAP_ORG_NAME"]
+            ? {
+                BOOTSTRAP_ORG_NAME: process.env["BOOTSTRAP_ORG_NAME"] as string,
+              }
+            : {}),
         },
       },
 });

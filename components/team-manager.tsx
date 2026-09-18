@@ -35,6 +35,7 @@ import {
 export interface MemberRow {
   id: string;
   email: string;
+  name: string;
   role: "SUPER_ADMIN" | "MEMBER";
   createdAt: string;
 }
@@ -186,6 +187,7 @@ export function TeamManager({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Joined</TableHead>
@@ -195,7 +197,8 @@ export function TeamManager({
         <TableBody>
           {members.map((m) => (
             <TableRow key={m.id}>
-              <TableCell className="font-medium">{m.email}</TableCell>
+              <TableCell className="font-medium">{m.name || "—"}</TableCell>
+              <TableCell className="text-muted-foreground">{m.email}</TableCell>
               <TableCell>
                 <Badge
                   variant={m.role === "SUPER_ADMIN" ? "default" : "secondary"}

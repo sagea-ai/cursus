@@ -6,6 +6,7 @@ import { FiCopy, FiPlus } from "react-icons/fi";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,17 @@ export function KeysManager({
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [confirming, setConfirming] = React.useState<
+    | { kind: "revoke"; id: string; label: string; owner?: string }
+    | { kind: "rotate"; id: string; label: string; owner?: string }
+    | null
+  >(null);
+  const [confirmBusy, setConfirmBusy] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+
+  function describeKey(keyLabel: string, owner?: string) {
+    return owner ? `${owner}'s key "${keyLabel}"` : `key "${keyLabel}"`;
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -80,41 +92,36 @@ export function KeysManager({
     router.refresh();
   }
 
-  async function revoke(id: string, keyLabel: string, owner?: string) {
-    const whose = owner ? `${owner}'s key "${keyLabel}"` : `key "${keyLabel}"`;
-    if (
-      !confirm(
-        `Revoke ${whose}? Any training job using it will fail to log from that moment on.`,
-      )
-    ) {
+  async function runConfirmedAction() {
+    if (!confirming) return;
+    setConfirmBusy(true);
+    setActionError(null);
+    if (confirming.kind === "revoke") {
+      const res = await fetch(`/api/v1/keys/${confirming.id}`, {
+        method: "DELETE",
+      });
+      setConfirmBusy(false);
+      if (!res.ok) {
+        const body = await res.json();
+        setActionError(body.error ?? "Could not revoke key");
+        return;
+      }
+      setConfirming(null);
+      router.refresh();
       return;
     }
-    const res = await fetch(`/api/v1/keys/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const body = await res.json();
-      alert(body.error ?? "Could not revoke key");
-      return;
-    }
-    router.refresh();
-  }
-
-  async function rotate(id: string, keyLabel: string, owner?: string) {
-    const whose = owner ? `${owner}'s key "${keyLabel}"` : `key "${keyLabel}"`;
-    if (
-      !confirm(
-        `Rotate ${whose}? A replacement key is issued and shown once; the old secret stops working immediately. Update CURSUS_API_KEY wherever it is used.`,
-      )
-    ) {
-      return;
-    }
-    const res = await fetch(`/api/v1/keys/${id}/rotate`, { method: "POST" });
+    const res = await fetch(`/api/v1/keys/${confirming.id}/rotate`, {
+      method: "POST",
+    });
     const body = await res.json();
+    setConfirmBusy(false);
     if (!res.ok) {
-      alert(body.error ?? "Could not rotate key");
+      setActionError(body.error ?? "Could not rotate key");
       return;
     }
     // Reveal the replacement exactly once, reusing the create dialog.
-    setRevealedFor(`Rotated replacement for "${keyLabel}"`);
+    setConfirming(null);
+    setRevealedFor(`Rotated replacement for "${confirming.label}"`);
     setPlaintext(body.plaintext);
     setOpen(true);
   }
@@ -216,13 +223,13 @@ export function KeysManager({
               <TableCell className="text-xs text-muted-foreground">
                 {k.lastUsedAt
                   ? new Date(k.lastUsedAt).toLocaleString()
-                  : "never"}
+                  : "Never"}
               </TableCell>
               <TableCell>
                 {k.revokedAt ? (
-                  <Badge variant="warning">revoked</Badge>
+                  <Badge variant="warning">Revoked</Badge>
                 ) : (
-                  <Badge variant="secondary">active</Badge>
+                  <Badge variant="active">Active</Badge>
                 )}
               </TableCell>
               <TableCell>
@@ -231,14 +238,28 @@ export function KeysManager({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void rotate(k.id, k.label, k.ownerEmail)}
+                      onClick={() =>
+                        setConfirming({
+                          kind: "rotate",
+                          id: k.id,
+                          label: k.label,
+                          owner: k.ownerEmail,
+                        })
+                      }
                     >
                       Rotate
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void revoke(k.id, k.label, k.ownerEmail)}
+                      onClick={() =>
+                        setConfirming({
+                          kind: "revoke",
+                          id: k.id,
+                          label: k.label,
+                          owner: k.ownerEmail,
+                        })
+                      }
                     >
                       Revoke
                     </Button>
@@ -259,6 +280,30 @@ export function KeysManager({
           )}
         </TableBody>
       </Table>
+      {actionError && (
+        <p role="alert" className="text-sm text-warning">
+          {actionError}
+        </p>
+      )}
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirming(null);
+        }}
+        title={
+          confirming?.kind === "rotate" ? "Rotate API key" : "Revoke API key"
+        }
+        description={
+          confirming?.kind === "rotate"
+            ? `Rotate ${describeKey(confirming.label, confirming.owner)}? A replacement key is issued and shown once; the old secret stops working immediately. Update CURSUS_API_KEY wherever it is used.`
+            : confirming
+              ? `Revoke ${describeKey(confirming.label, confirming.owner)}? Any training job using it will fail to log from that moment on.`
+              : ""
+        }
+        confirmLabel={confirming?.kind === "rotate" ? "Rotate key" : "Revoke key"}
+        busy={confirmBusy}
+        onConfirm={() => void runConfirmedAction()}
+      />
     </div>
   );
 }

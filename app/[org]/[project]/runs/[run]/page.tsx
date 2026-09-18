@@ -90,6 +90,7 @@ export default async function RunDetailPage({
               artifactName: a.artifactName,
               version: a.version,
             }))}
+            group={detail.group}
           />
         </TabsContent>
         <TabsContent value="config">

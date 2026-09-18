@@ -328,3 +328,53 @@ export async function removeGroupMember(
   }
   return { id: targetUserId };
 }
+
+export interface GroupRunRow {
+  id: string;
+  name: string;
+  status: string;
+  projectSlug: string;
+  createdBy: string;
+  startedAt: Date;
+}
+
+/** Runs in a group, newest first. Caller must see the group (checked by
+ * getGroup in the page, or membership inline here for API use). */
+export async function listGroupRuns(
+  auth: GroupAuth,
+  slug: string,
+): Promise<GroupRunRow[]> {
+  const group = await db.group.findUnique({
+    where: { orgId_slug: { orgId: auth.orgId, slug } },
+    select: { id: true },
+  });
+  if (!group) throw new ApiError(404, "group not found");
+  if (auth.role !== "SUPER_ADMIN") {
+    const membership = await db.groupMember.findUnique({
+      where: { groupId_userId: { groupId: group.id, userId: auth.userId } },
+      select: { groupId: true },
+    });
+    if (!membership) throw new ApiError(404, "group not found");
+  }
+  const runs = await db.run.findMany({
+    where: { groupId: group.id },
+    orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+    take: 200,
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      startedAt: true,
+      createdBy: { select: { email: true } },
+      project: { select: { slug: true } },
+    },
+  });
+  return runs.map((r) => ({
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    projectSlug: r.project.slug,
+    createdBy: r.createdBy.email,
+    startedAt: r.startedAt,
+  }));
+}

@@ -23,6 +23,7 @@ export interface RunRow {
   status: string;
   tags: string[];
   notes: string;
+  group: { slug: string; name: string } | null;
   summary: Record<string, number>;
   createdBy: string;
   startedAt: string;
@@ -49,10 +50,12 @@ export function RunsTable({
   runs,
   sort,
   basePath,
+  orgSlug,
 }: {
   runs: RunRow[];
   sort: string;
   basePath: string;
+  orgSlug: string;
 }) {
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<string>("ALL");
@@ -148,6 +151,7 @@ export function RunsTable({
             <TableHead>Status</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Notes</TableHead>
+            <TableHead>Group</TableHead>
             <TableHead>Tags</TableHead>
             <TableHead>By</TableHead>
             <TableHead>Created</TableHead>
@@ -192,6 +196,18 @@ export function RunsTable({
                 {r.notes || "—"}
               </TableCell>
               <TableCell>
+                {r.group ? (
+                  <Link
+                    href={`/${orgSlug}/groups/${r.group.slug}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Badge variant="default">{r.group.slug}</Badge>
+                  </Link>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell>
                 <span className="flex flex-wrap gap-1">
                   {r.tags.map((t) => (
                     <Badge key={t} variant="outline">
@@ -221,7 +237,7 @@ export function RunsTable({
           {filtered.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={8 + summaryKeys.length}
+                colSpan={9 + summaryKeys.length}
                 className="py-8 text-center text-muted-foreground"
               >
                 No runs match. Log one from a training script to get started.

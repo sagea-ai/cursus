@@ -13,6 +13,10 @@ const ADMIN = {
   password: "admin-password-1",
 };
 const MEMBER = { email: "member@e2e.test", password: "member-password-1" };
+const OUTSIDER = {
+  email: "outsider@e2e.test",
+  password: "outsider-password-1",
+};
 
 function sessionCookie(setCookie: string | null): string {
   const m = /cursus_session=([^;]+)/.exec(setCookie ?? "");
@@ -174,7 +178,66 @@ test("critical journey: bootstrap to restricted member", async ({
     expect(fin.ok()).toBeTruthy();
   }
 
-  // 4b. Attach an artifact to the first run, browse it in the UI.
+  // 4c. Groups: admin creates the group via UI; the second invitee is
+  // created via API first so the UI member-add has someone to add. Group
+  // run logged via API; MEMBER (invited later, never added) is the
+  // stranger who must see neither group nor run.
+  await page.goto(`/${orgSlug}/groups`);
+  await page.getByRole("button", { name: "New Group" }).click();
+  await page.getByLabel("Name").fill("e2e-group");
+  await page.getByRole("button", { name: "Create group" }).click();
+  await expect(page.getByText("e2e-group", { exact: true })).toBeVisible();
+
+  const { cookie: adminCookie } = await apiLogin(
+    request,
+    ADMIN.email,
+    ADMIN.password,
+  );
+  const inv2 = await request.post("/api/v1/team/invite", {
+    headers: { Cookie: adminCookie },
+    data: { email: OUTSIDER.email },
+  });
+  expect(inv2.ok()).toBeTruthy();
+  const inv2Url = ((await inv2.json()).inviteUrl as string) ?? "";
+  const inv2Token = inv2Url.split("/").pop()!;
+  const acc2 = await request.post("/api/v1/auth/invites/accept", {
+    data: { token: inv2Token, password: OUTSIDER.password },
+  });
+  expect(acc2.ok()).toBeTruthy();
+
+  await page.getByRole("link", { name: /e2e-group/ }).click();
+  await page.getByLabel("Add by email").fill(OUTSIDER.email);
+  await page.getByRole("button", { name: "Add" }).click();
+  await expect(
+    page.getByRole("cell", { name: OUTSIDER.email, exact: true }),
+  ).toBeVisible();
+
+  const grun = await request.post("/api/v1/runs", {
+    headers,
+    data: { project: "e2e-proj", name: "group-run", group: "e2e-group" },
+  });
+  expect(grun.ok()).toBeTruthy();
+  const groupRunId = ((await grun.json()).run_id as string) ?? "";
+  await page.goto(`/${orgSlug}/groups/e2e-group`);
+  await expect(page.getByText("group-run")).toBeVisible();
+
+  // Outsider is a member: sees group and run.
+  const { cookie: outsiderCookie } = await apiLogin(
+    request,
+    OUTSIDER.email,
+    OUTSIDER.password,
+  );
+  const oh = { Cookie: outsiderCookie };
+  const oGroups = await request.get("/api/v1/groups", { headers: oh });
+  expect(
+    ((await oGroups.json()).groups as { slug: string }[]).map((g) => g.slug),
+  ).toContain("e2e-group");
+  const oRun = await request.get(`/api/v1/runs/${groupRunId}`, {
+    headers: oh,
+  });
+  expect(oRun.status()).toBe(200);
+
+  // 4d. Attach an artifact to the first run, browse it in the UI.
   const up = await request.post("/api/v1/artifacts", {
     headers,
     multipart: {
@@ -202,8 +265,9 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("link", { name: "run-b" })).toBeVisible();
   await page.getByRole("link", { name: "Name A–Z" }).click();
   await expect(page).toHaveURL(/sort=name_asc/);
+  // Alphabetical across all three runs: group-run, run-a, run-b.
   const firstRow = page.getByRole("row").nth(1);
-  await expect(firstRow.getByRole("link", { name: "run-a" })).toBeVisible();
+  await expect(firstRow.getByRole("link", { name: "group-run" })).toBeVisible();
   await page.getByRole("link", { name: "run-a" }).click();
   await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
   await page.locator("svg").first().waitFor({ timeout: 15_000 });
@@ -251,11 +315,17 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page).toHaveURL(`/${orgSlug}/projects`);
 
   // 8. Restricted permissions: no invite UI, no row actions, own keys only.
+  // MEMBER was never added to e2e-group: group list is empty for them and
+  // the group run stays invisible in UI and API alike.
   await page.goto(`/${orgSlug}/team`);
   await expect(page.getByRole("button", { name: "Invite Member" })).toHaveCount(
     0,
   );
   await expect(page.getByRole("cell", { name: MEMBER.email })).toBeVisible();
+  await page.goto(`/${orgSlug}/groups`);
+  await expect(page.getByText("You are in no groups yet")).toBeVisible();
+  await page.goto(`/${orgSlug}/e2e-proj/runs`);
+  await expect(page.getByRole("link", { name: "group-run" })).toHaveCount(0);
 
   const { cookie: memberCookie } = await apiLogin(
     request,
@@ -267,4 +337,12 @@ test("critical journey: bootstrap to restricted member", async ({
     data: { email: "nope@e2e.test" },
   });
   expect(forbidden.status()).toBe(403);
+  // Stranger's API view: group list empty, group run a 404.
+  const mh = { Cookie: memberCookie };
+  const mGroups = await request.get("/api/v1/groups", { headers: mh });
+  expect((await mGroups.json()).groups as unknown[]).toHaveLength(0);
+  const mRun = await request.get(`/api/v1/runs/${groupRunId}`, {
+    headers: mh,
+  });
+  expect(mRun.status()).toBe(404);
 });

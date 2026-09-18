@@ -9,6 +9,7 @@ import {
   FiChevronsRight,
   FiFolder,
   FiKey,
+  FiLayers,
   FiSettings,
   FiUsers,
 } from "react-icons/fi";
@@ -28,7 +29,10 @@ const SECTIONS: {
 }[] = [
   {
     label: "Experiments",
-    items: [{ href: "projects", label: "Projects", icon: FiFolder }],
+    items: [
+      { href: "projects", label: "Projects", icon: FiFolder },
+      { href: "groups", label: "Groups", icon: FiLayers },
+    ],
   },
   {
     label: "Management",

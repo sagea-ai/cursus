@@ -36,6 +36,7 @@ export default async function RunsPage({
     status: r.status,
     tags: r.tags,
     notes: r.notes,
+    group: r.group,
     summary: (r.summary ?? {}) as Record<string, number>,
     createdBy: r.createdBy,
     startedAt: r.startedAt.toISOString(),
@@ -55,6 +56,7 @@ export default async function RunsPage({
         runs={rows}
         sort={sort}
         basePath={`/${org.slug}/${projectSlug}/runs`}
+        orgSlug={org.slug}
       />
     </main>
   );

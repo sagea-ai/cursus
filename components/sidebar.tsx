@@ -111,7 +111,7 @@ export function Sidebar({
           onClick={toggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand" : "Collapse"}
-          className="ml-auto rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-black/[0.05] hover:text-neutral-700"
+          className="ml-auto rounded-md p-1.5 text-white transition-colors bg-black/40 hover:bg-black/[0.05] hover:text-neutral-700"
         >
           {collapsed ? (
             <FiChevronsRight className="size-4" />

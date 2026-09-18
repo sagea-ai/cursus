@@ -3,11 +3,9 @@
 import * as React from "react";
 import { FiMaximize2, FiX } from "react-icons/fi";
 
-import { MetricChart, type ChartDatum } from "@/components/metric-chart";
+import { MetricChart, CHART_PALETTE, type ChartDatum } from "@/components/metric-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const GROUP_COLORS = ["#1976FD", "#45AAFD", "#75C4FD", "#FBBF24", "#f2f5fb"];
 
 function groupOf(key: string): string {
   const i = key.indexOf("/");
@@ -117,7 +115,7 @@ export function RunCharts({
                 <CardContent className="p-4 pt-2">
                   <MetricChart
                     data={data[key] ?? []}
-                    color={GROUP_COLORS[i % GROUP_COLORS.length]}
+                    color={CHART_PALETTE[i % CHART_PALETTE.length]}
                     height={expanded ? 420 : 180}
                   />
                 </CardContent>

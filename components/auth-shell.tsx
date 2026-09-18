@@ -14,7 +14,7 @@ export function AuthShell({
   footnote: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen bg-[#f4f4f5] text-neutral-900">
+    <main className="flex min-h-screen bg-background text-neutral-900">
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
         <Image
           src="/sagea_banner.png"

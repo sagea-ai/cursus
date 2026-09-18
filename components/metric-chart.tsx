@@ -11,12 +11,21 @@ import {
 } from "recharts";
 
 // Single metric-chart component for run detail + compare (PRD §10.1).
-// Recharts under the hood, SAGEA-on-dark styling. Payloads are already
+// Recharts under the hood, SAGEA-on-light styling. Payloads are already
 // server-downsampled (max_points) — this component just renders.
 export interface ChartDatum {
   step: number;
   value: number;
 }
+
+/** Line colors, one per run/series. Run A keeps its color across a page. */
+export const CHART_PALETTE = [
+  "#1976FD",
+  "#0050FD",
+  "#45AAFD",
+  "#D97706",
+  "#1C1917",
+];
 
 export function MetricChart({
   data,
@@ -39,21 +48,21 @@ export function MetricChart({
         margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
       >
         <CartesianGrid
-          stroke="#1c2440"
+          stroke="#e7e5e0"
           strokeDasharray="3 3"
           vertical={false}
         />
         <XAxis
           dataKey="step"
-          tick={{ fill: "#8b96ad", fontSize: 11 }}
+          tick={{ fill: "#78716c", fontSize: 11 }}
           tickLine={false}
-          axisLine={{ stroke: "#1c2440" }}
+          axisLine={{ stroke: "#e7e5e0" }}
           hide={hideAxes}
           type="number"
           domain={["dataMin", "dataMax"]}
         />
         <YAxis
-          tick={{ fill: "#8b96ad", fontSize: 11 }}
+          tick={{ fill: "#78716c", fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           hide={hideAxes}
@@ -62,12 +71,13 @@ export function MetricChart({
         />
         <Tooltip
           contentStyle={{
-            background: "#0b0f1a",
-            border: "1px solid #1c2440",
+            background: "#ffffff",
+            border: "1px solid #e5e2dc",
             borderRadius: 8,
             fontSize: 12,
+            color: "#1c1917",
           }}
-          labelStyle={{ color: "#8b96ad" }}
+          labelStyle={{ color: "#78716c" }}
           formatter={(value) => [
             typeof value === "number" ? value.toPrecision(6) : value,
             "",

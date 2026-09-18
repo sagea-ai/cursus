@@ -135,8 +135,7 @@ export function TeamManager({
               <DialogHeader>
                 <DialogTitle>Invite a member</DialogTitle>
                 <DialogDescription>
-                  They join as a member. Copy the link and send it yourself —
-                  Cursus sends no email in v1.
+                  They join as a member. Copy the link and send it yourself.
                 </DialogDescription>
               </DialogHeader>
               {inviteUrl ? (

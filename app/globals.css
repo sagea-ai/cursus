@@ -1,29 +1,31 @@
 @import "tailwindcss";
 
-/* Cursus theme — dark-mode-first (PRD §7). SAGEA blues on near-black.
- * Single theme in v1 (no toggle): :root IS the dark palette.
- * --warning is the one consistent crash/alert tone app-wide. */
+/* Cursus theme — light, warm paper (matches the login shell). SAGEA blues
+ * as the single accent family.
+ * --warning is the one consistent crash/alert tone app-wide (amber-700 so
+ * it stays legible on white; soft tints come from opacity modifiers).
+ * accent-pale is link blue (readable on white), not literally pale. */
 
 :root {
   --radius: 0.625rem;
-  --background: #06080f;
-  --foreground: #f2f5fb;
-  --card: #0b0f1a;
-  --card-foreground: #f2f5fb;
-  --muted: #131a2b;
-  --muted-foreground: #8b96ad;
-  --border: #1c2440;
-  --input: #1c2440;
+  --background: #f6f5f3;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --muted: #eceae6;
+  --muted-foreground: #78716c;
+  --border: #e5e2dc;
+  --input: #d6d1c9;
   --primary: #1976fd;
   --primary-foreground: #ffffff;
   --primary-deep: #0050fd;
   --primary-ink: #0235ad;
   --accent-soft: #45aafd;
-  --accent-pale: #75c4fd;
-  --secondary: #ffffff;
-  --warning: #fbbf24;
+  --accent-pale: #0a54c2;
+  --secondary: #1c1917;
+  --warning: #b45309;
   --ring: #1976fd;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @theme inline {

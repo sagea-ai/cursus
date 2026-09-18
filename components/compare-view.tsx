@@ -16,10 +16,10 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CHART_PALETTE as PALETTE } from "@/components/metric-chart";
 
 // Compare view (§7.7): one line per run on every chart, run A's color constant
 // across the page, shared legend. Config table shows differing keys only.
-const PALETTE = ["#1976FD", "#45AAFD", "#75C4FD", "#FBBF24", "#f2f5fb"];
 
 interface RunMeta {
   id: string;
@@ -147,20 +147,20 @@ export function CompareView({ basePath }: { basePath: string }) {
                     margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
                   >
                     <CartesianGrid
-                      stroke="#1c2440"
+                      stroke="#e7e5e0"
                       strokeDasharray="3 3"
                       vertical={false}
                     />
                     <XAxis
                       dataKey="step"
-                      tick={{ fill: "#8b96ad", fontSize: 11 }}
+                      tick={{ fill: "#78716c", fontSize: 11 }}
                       tickLine={false}
-                      axisLine={{ stroke: "#1c2440" }}
+                      axisLine={{ stroke: "#e7e5e0" }}
                       type="number"
                       domain={["dataMin", "dataMax"]}
                     />
                     <YAxis
-                      tick={{ fill: "#8b96ad", fontSize: 11 }}
+                      tick={{ fill: "#78716c", fontSize: 11 }}
                       tickLine={false}
                       axisLine={false}
                       width={48}
@@ -168,14 +168,15 @@ export function CompareView({ basePath }: { basePath: string }) {
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "#0b0f1a",
-                        border: "1px solid #1c2440",
+                        background: "#ffffff",
+                        border: "1px solid #e5e2dc",
                         borderRadius: 8,
                         fontSize: 12,
+                        color: "#1c1917",
                       }}
-                      labelStyle={{ color: "#8b96ad" }}
+                      labelStyle={{ color: "#78716c" }}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: "#57534e" }} />
                     {metas.map((m, i) => (
                       <Line
                         key={m.id}

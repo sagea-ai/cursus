@@ -48,12 +48,26 @@ export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),
     tags: z.array(z.string().min(1).max(64)).max(32).optional(),
+    notes: z.string().max(2000).optional(),
   })
-  .refine((b) => b.name !== undefined || b.tags !== undefined, {
-    message: "nothing to update",
-  });
+  .refine(
+    (b) =>
+      b.name !== undefined || b.tags !== undefined || b.notes !== undefined,
+    { message: "nothing to update" },
+  );
 
 export type UpdateRunInput = z.infer<typeof updateRunSchema>;
+
+export const runListSortSchema = z
+  .enum(["recent", "oldest", "name_asc", "name_desc"])
+  .optional()
+  .default("recent");
+
+export type RunListSort = z.infer<typeof runListSortSchema>;
+
+export const renameProjectSchema = z.object({
+  name: z.string().min(1).max(128),
+});
 
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(320),

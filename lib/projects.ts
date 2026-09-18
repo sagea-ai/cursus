@@ -111,3 +111,111 @@ export async function deleteProject(
   await db.project.delete({ where: { id: project.id } });
   return { slug: projectSlug };
 }
+
+export interface ProjectContributor {
+  email: string;
+  name: string;
+  runs: number;
+}
+
+export interface ProjectOverview {
+  project: { id: string; slug: string; name: string; createdAt: Date };
+  /** v1 has no per-project visibility: everything is org-visible. */
+  visibility: "Team";
+  lastActiveAt: Date | null;
+  totalRuns: number;
+  /** Sum of (finishedAt ?? now) - startedAt across runs, in milliseconds. */
+  totalComputeMs: number;
+  contributors: ProjectContributor[];
+  statusCounts: Record<string, number>;
+}
+
+/** Everything the project overview page needs in two queries, no N+1. */
+export async function getProjectOverview(
+  session: Session | null,
+  orgSlug: string,
+  projectSlug: string,
+): Promise<ProjectOverview> {
+  requireAuth(session);
+  const orgId = await orgIdFor(session, orgSlug);
+  const project = await db.project.findUnique({
+    where: { orgId_slug: { orgId, slug: projectSlug } },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      createdAt: true,
+      runs: {
+        select: {
+          status: true,
+          startedAt: true,
+          finishedAt: true,
+          createdBy: { select: { email: true, name: true } },
+        },
+      },
+    },
+  });
+  if (!project) throw new ApiError(404, "project not found");
+  const now = Date.now();
+  const byUser = new Map<string, ProjectContributor>();
+  const statusCounts: Record<string, number> = {};
+  let lastActiveAt: Date | null = project.createdAt;
+  let totalComputeMs = 0;
+  for (const r of project.runs) {
+    statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+    if (!lastActiveAt || r.startedAt > lastActiveAt) lastActiveAt = r.startedAt;
+    totalComputeMs += (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
+    const key = r.createdBy.email;
+    const entry = byUser.get(key) ?? {
+      email: key,
+      name: r.createdBy.name,
+      runs: 0,
+    };
+    entry.runs += 1;
+    // Name can change per row only if edited; last write wins, fine for v1.
+    entry.name = r.createdBy.name;
+    byUser.set(key, entry);
+  }
+  return {
+    project: {
+      id: project.id,
+      slug: project.slug,
+      name: project.name,
+      createdAt: project.createdAt,
+    },
+    visibility: "Team",
+    lastActiveAt,
+    totalRuns: project.runs.length,
+    totalComputeMs,
+    contributors: [...byUser.values()].sort((a, b) => b.runs - a.runs),
+    statusCounts,
+  };
+}
+
+/** Rename a project (slug is stable). Any org member. */
+export async function renameProject(
+  session: Session | null,
+  orgSlug: string,
+  projectSlug: string,
+  name: string,
+): Promise<{ id: string; slug: string; name: string }> {
+  requireAuth(session);
+  const orgId = await orgIdFor(session, orgSlug);
+  try {
+    return await db.project.update({
+      where: { orgId_slug: { orgId, slug: projectSlug } },
+      data: { name },
+      select: { id: true, slug: true, name: true },
+    });
+  } catch (e) {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code: string }).code === "P2025"
+    ) {
+      throw new ApiError(404, "project not found");
+    }
+    throw e;
+  }
+}

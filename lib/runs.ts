@@ -5,10 +5,12 @@ import type {
   CreateRunInput,
   FinishRunInput,
   LogBatchInput,
+  RunListSort,
   UpdateRunInput,
 } from "@/lib/validation";
 import { KeyAuthError } from "@/lib/api-auth";
 import { requireRole, type Session } from "@/lib/auth";
+import { ApiError } from "@/lib/http";
 
 // (validate → auth → call service → return); everything testable lives here.
 // No N+1: every read uses a single query with select/include (PRD §9).
@@ -175,13 +177,14 @@ export async function heartbeat(
 export async function listRuns(
   auth: { orgId: string },
   projectSlug: string,
-  opts: { cursor?: string; limit?: number } = {},
+  opts: { cursor?: string; limit?: number; sort?: RunListSort } = {},
 ): Promise<{
   runs: Array<{
     id: string;
     name: string;
     status: string;
     tags: string[];
+    notes: string;
     summary: unknown;
     createdBy: string;
     startedAt: Date;
@@ -190,6 +193,7 @@ export async function listRuns(
   nextCursor: string | null;
 }> {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const sort: RunListSort = opts.sort ?? "recent";
   const project = await db.project.findUnique({
     where: { orgId_slug: { orgId: auth.orgId, slug: projectSlug } },
     select: { id: true },
@@ -197,20 +201,57 @@ export async function listRuns(
   if (!project) throw new KeyAuthError(404, "project not found");
   // Dead-run sweep first, so the page below never shows a stale RUNNING.
   await markStaleRuns(auth, project.id);
-  // Cursor-based pagination on (startedAt, id) — stays flat as history grows;
-  // OFFSET/LIMIT degrades linearly on this unbounded table (PRD §9).
+  // Cursor-based pagination (PRD §9). The cursor filter must match the
+  // ordering in every mode, otherwise rows repeat or vanish across pages.
+  let cursorFilter = {};
+  if (opts.cursor) {
+    if (sort === "recent") {
+      cursorFilter = { id: { lt: opts.cursor } };
+    } else {
+      const c = await db.run.findUnique({
+        where: { id: opts.cursor },
+        select: { id: true, name: true, startedAt: true },
+      });
+      if (!c) throw new ApiError(400, "invalid cursor");
+      if (sort === "oldest") {
+        cursorFilter = {
+          OR: [
+            { startedAt: { gt: c.startedAt } },
+            { startedAt: c.startedAt, id: { gt: c.id } },
+          ],
+        };
+      } else if (sort === "name_asc") {
+        cursorFilter = {
+          OR: [{ name: { gt: c.name } }, { name: c.name, id: { gt: c.id } }],
+        };
+      } else {
+        cursorFilter = {
+          OR: [{ name: { lt: c.name } }, { name: c.name, id: { lt: c.id } }],
+        };
+      }
+    }
+  }
+  const orderBy =
+    sort === "recent"
+      ? [{ startedAt: "desc" as const }, { id: "desc" as const }]
+      : sort === "oldest"
+        ? [{ startedAt: "asc" as const }, { id: "asc" as const }]
+        : sort === "name_asc"
+          ? [{ name: "asc" as const }, { id: "asc" as const }]
+          : [{ name: "desc" as const }, { id: "desc" as const }];
   const rows = await db.run.findMany({
     where: {
       projectId: project.id,
-      ...(opts.cursor ? { id: { lt: opts.cursor } } : {}),
+      ...cursorFilter,
     },
-    orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+    orderBy,
     take: limit + 1,
     select: {
       id: true,
       name: true,
       status: true,
       tags: true,
+      notes: true,
       summary: true,
       startedAt: true,
       finishedAt: true,
@@ -225,6 +266,7 @@ export async function listRuns(
       name: r.name,
       status: r.status,
       tags: r.tags,
+      notes: r.notes,
       summary: r.summary,
       createdBy: r.createdBy.email,
       startedAt: r.startedAt,
@@ -260,6 +302,7 @@ export interface RunDetail {
   name: string;
   status: string;
   tags: string[];
+  notes: string;
   config: unknown;
   summary: unknown;
   createdBy: string;
@@ -281,6 +324,7 @@ export async function getRun(
       name: true,
       status: true,
       tags: true,
+      notes: true,
       config: true,
       summary: true,
       startedAt: true,
@@ -312,6 +356,7 @@ export async function getRun(
     name: run.name,
     status,
     tags: run.tags,
+    notes: run.notes,
     config: run.config,
     summary: run.summary,
     createdBy: run.createdBy.email,
@@ -322,20 +367,21 @@ export async function getRun(
   };
 }
 
-/** Rename / retag a run. Any org member (consistent with open visibility). */
+/** Rename / retag / annotate a run. Any org member. */
 export async function updateRun(
   auth: { orgId: string },
   runId: string,
   input: UpdateRunInput,
-): Promise<{ id: string; name: string; tags: string[] }> {
+): Promise<{ id: string; name: string; tags: string[]; notes: string }> {
   await assertRunInOrg(auth.orgId, runId);
   const run = await db.run.update({
     where: { id: runId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      ...(input.notes !== undefined ? { notes: input.notes } : {}),
     },
-    select: { id: true, name: true, tags: true },
+    select: { id: true, name: true, tags: true, notes: true },
   });
   return run;
 }

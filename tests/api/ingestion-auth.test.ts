@@ -149,13 +149,18 @@ describe.skipIf(!apiTestsEnabled)("ingestion auth modes", () => {
       const patched = await runPATCH(
         await authedRequest(`/api/v1/runs/${runId}`, org.member, {
           method: "PATCH",
-          body: { name: "new", tags: ["x", "y"] },
+          body: { name: "new", tags: ["x", "y"], notes: "promising direction" },
         }),
         { params: Promise.resolve({ runId }) },
       );
       expect(patched.status).toBe(200);
       expect(await patched.json()).toMatchObject({
-        run: { id: runId, name: "new", tags: ["x", "y"] },
+        run: {
+          id: runId,
+          name: "new",
+          tags: ["x", "y"],
+          notes: "promising direction",
+        },
       });
 
       const empty = await runPATCH(

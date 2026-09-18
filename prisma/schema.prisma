@@ -45,6 +45,7 @@ model Org {
   projects  Project[]
   apiKeys   ApiKey[]
   groups    Group[]
+  auditEvents AuditEvent[]
 }
 
 // Deployment-wide singleton flags (one row, id = "global"). Owns the
@@ -76,6 +77,7 @@ model User {
   artifactsCreated Artifact[]
   groupsCreated Group[]
   groupMemberships GroupMember[]
+  auditActions AuditEvent[]
 
   @@index([orgId])
 }
@@ -195,6 +197,28 @@ model GroupMember {
   @@index([userId])
 
   @@map("group_members")
+}
+
+// --- Audit log -------------------------------------------------------------
+// Append-only record of sensitive actions (today: API key lifecycle —
+// created, rotated, revoked). Powers the History dialog so revoked keys
+// don't clutter the active-keys table. Rows are never updated or deleted
+// by the app; actor attribution uses Restrict (like runs) since user rows
+// are never hard-deleted either.
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  orgId      String
+  org        Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([orgId, createdAt])
 }
 
 // --- Artifacts (v1, scoped) ------------------------------------------------

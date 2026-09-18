@@ -18,9 +18,5 @@ export default async function LoginPage() {
     });
     if (user) redirect(`/${user.org.slug}/projects`);
   }
-  return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <LoginForm />
-    </main>
-  );
+  return <LoginForm />;
 }

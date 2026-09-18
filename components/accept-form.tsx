@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { authInputClass } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function AcceptForm({ token }: { token: string }) {
@@ -38,33 +38,37 @@ export function AcceptForm({ token }: { token: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
+    <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Choose a password</Label>
-        <Input
+        <input
           id="password"
           type="password"
           autoComplete="new-password"
           required
           minLength={8}
+          placeholder="At least 8 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className={authInputClass}
         />
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="confirm">Confirm password</Label>
-        <Input
+        <input
           id="confirm"
           type="password"
           autoComplete="new-password"
           required
           minLength={8}
+          placeholder="Repeat it exactly"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
+          className={authInputClass}
         />
       </div>
       {error && (
-        <p role="alert" className="text-sm text-warning">
+        <p role="alert" className="text-sm text-red-600">
           {error}
         </p>
       )}

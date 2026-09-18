@@ -4,12 +4,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { AuthShell } from "@/components/auth-shell";
+import { AuthShell, authInputClass } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-
-const inputClass =
-  "h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900";
 
 // Split-screen login modeled on the SAGEA platform login.
 export function LoginForm() {
@@ -82,7 +79,7 @@ export function LoginForm() {
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={inputClass}
+                className={authInputClass}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -95,7 +92,7 @@ export function LoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
+                className={authInputClass}
               />
             </div>
             {error && (

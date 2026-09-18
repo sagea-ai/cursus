@@ -4,12 +4,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { AuthShell } from "@/components/auth-shell";
+import { AuthShell, authInputClass } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-
-const inputClass =
-  "h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500";
 
 // Two-step first-run onboarding (docs/prd-onboarding.md): step 1 gates on
 // the bootstrap email, step 2 collects identity + the twice-entered password
@@ -101,7 +98,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   placeholder="you@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={inputClass}
+                  className={authInputClass}
                 />
                 <p className="text-xs text-neutral-500">
                   The address in BOOTSTRAP_ADMIN_EMAIL. Nothing is checked until
@@ -126,7 +123,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   placeholder="Ada Lovelace"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className={inputClass}
+                  className={authInputClass}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -136,7 +133,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   value="Super admin"
                   disabled
                   aria-describedby="ob-role-note"
-                  className={inputClass}
+                  className={authInputClass}
                 />
                 <p id="ob-role-note" className="text-xs text-neutral-500">
                   The first account must own the org, so this is locked.
@@ -151,7 +148,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   placeholder="Acme"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  className={inputClass}
+                  className={authInputClass}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -160,7 +157,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   id="ob-login-email"
                   value={email}
                   disabled
-                  className={inputClass}
+                  className={authInputClass}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -174,7 +171,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={inputClass}
+                  className={authInputClass}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -188,7 +185,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
                   placeholder="Repeat it exactly"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
-                  className={inputClass}
+                  className={authInputClass}
                 />
               </div>
 

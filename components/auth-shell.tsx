@@ -1,9 +1,11 @@
 import Image from "next/image";
 import * as React from "react";
 
-// Shared shell for the public auth routes (login, onboarding): brand panel
-// with a centered card on the left, full-height artwork on the right.
-// Deliberately light-themed — standalone routes outside the dark dashboard.
+// Shared shell for the public auth routes (login, onboarding, invite):
+// brand panel with a centered card on the left, full-height artwork on the
+// right. authInputClass keeps every public form's fields identical.
+export const authInputClass =
+  "h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 shadow-sm transition-colors placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500";
 export function AuthShell({
   tagline,
   card,

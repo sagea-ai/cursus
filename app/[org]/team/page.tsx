@@ -22,11 +22,10 @@ export default async function TeamPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-8">
       <div>
-        <p className="text-xs text-muted-foreground">{org.name}</p>
-        <h1 className="text-2xl font-semibold">Team</h1>
+        <p className="text-sm b text-bold">{org.name}</p>
+        <h1 className="text-2xl mt-2 font-semibold">Team</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Everyone sees every project and run — there are no private projects in
-          v1.
+          Manage your Team in the organization.
         </p>
       </div>
       <TeamManager members={rows} isAdmin={session.role === "SUPER_ADMIN"} />

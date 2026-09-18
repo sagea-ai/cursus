@@ -488,6 +488,18 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
         slug("temp"),
       );
       expect(memberDel.status).toBe(403);
+
+      const renamed = await groupPATCH(
+        await authedRequest("/api/v1/groups/temp", org.admin, {
+          method: "PATCH",
+          body: { name: "Temporary", description: "renamed" },
+        }),
+        slug("temp"),
+      );
+      expect(renamed.status).toBe(200);
+      expect(((await renamed.json()).group as { name: string }).name).toBe(
+        "Temporary",
+      );
       const del = await groupDELETE(
         await authedRequest("/api/v1/groups/temp", org.admin, {
           method: "DELETE",

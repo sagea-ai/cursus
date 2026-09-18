@@ -139,6 +139,13 @@ test("critical journey: bootstrap to restricted member", async ({
   expect(plaintext).not.toBe(firstPlaintext);
   await page.keyboard.press("Escape");
 
+  // Revoked keys leave the table; the History dialog shows the trail.
+  await page.getByRole("button", { name: "History" }).click();
+  const history = page.getByRole("dialog");
+  await expect(history.getByText("Created")).toBeVisible();
+  await expect(history.getByText("Rotated")).toBeVisible();
+  await page.keyboard.press("Escape");
+
   const deadCheck = await request.post("/api/v1/runs", {
     headers: { Authorization: `Bearer ${firstPlaintext}` },
     data: { project: "e2e-proj", name: "should-fail" },

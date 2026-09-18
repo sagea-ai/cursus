@@ -59,17 +59,16 @@ export function Sidebar({
   role: "SUPER_ADMIN" | "MEMBER";
 }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = React.useState(false);
-
-  React.useEffect(() => {
+  // Lazy initializer (not an effect): reads persisted state once, and the
+  // typeof guard keeps server prerendering safe. No setState-in-effect.
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
     try {
-      if (window.localStorage.getItem("cursus-sidebar") === "collapsed") {
-        setCollapsed(true);
-      }
+      return window.localStorage.getItem("cursus-sidebar") === "collapsed";
     } catch {
-      // Private mode: just stay expanded.
+      return false;
     }
-  }, []);
+  });
 
   function toggle() {
     setCollapsed((c) => {

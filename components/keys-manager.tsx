@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { FiCopy, FiPlus } from "react-icons/fi";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { KeyHistoryDialog } from "@/components/key-history-dialog";
 import {
   Dialog,
   DialogContent,
@@ -128,73 +128,79 @@ export function KeysManager({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {isAdmin
-            ? "All keys in the org. Revoking someone else's key breaks their running jobs — confirm carefully."
-            : "Your keys. Use one per machine as CURSUS_API_KEY."}
+            ? "Active keys in the org. Revoking someone else's key breaks their running jobs — confirm carefully."
+            : "Your active keys. Use one per machine as CURSUS_API_KEY."}
         </p>
-        <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
-          <DialogTrigger asChild>
-            <Button>
-              <FiPlus /> Create Key
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {revealedFor ? "Key rotated" : "Create API key"}
-              </DialogTitle>
-              <DialogDescription>
-                {revealedFor ??
-                  "Name it after the machine or job that will use it."}
-              </DialogDescription>
-            </DialogHeader>
-            {plaintext ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm font-medium text-warning">
-                  Copy it now — you won&apos;t see this again.
-                </p>
-                <code className="break-all rounded-md bg-muted p-3 font-mono text-xs">
-                  {plaintext}
-                </code>
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(plaintext);
-                      setCopied(true);
-                    }}
-                  >
-                    <FiCopy /> {copied ? "Copied" : "Copy key"}
-                  </Button>
-                </DialogFooter>
-              </div>
-            ) : (
-              <form onSubmit={create} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="key-label">Label</Label>
-                  <Input
-                    id="key-label"
-                    required
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    placeholder="training-box-1"
-                  />
-                </div>
-                {error && (
-                  <p role="alert" className="text-sm text-warning">
-                    {error}
+        <span className="flex shrink-0 gap-2">
+          <KeyHistoryDialog />
+          <Dialog
+            open={open}
+            onOpenChange={(o) => (o ? setOpen(true) : close())}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <FiPlus /> Create Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {revealedFor ? "Key rotated" : "Create API key"}
+                </DialogTitle>
+                <DialogDescription>
+                  {revealedFor ??
+                    "Name it after the machine or job that will use it."}
+                </DialogDescription>
+              </DialogHeader>
+              {plaintext ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm font-medium text-warning">
+                    Copy it now — you won&apos;t see this again.
                   </p>
-                )}
-                <DialogFooter>
-                  <Button type="submit" disabled={busy}>
-                    {busy ? "Creating…" : "Create key"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
+                  <code className="break-all rounded-md bg-muted p-3 font-mono text-xs">
+                    {plaintext}
+                  </code>
+                  <DialogFooter>
+                    <Button
+                      onClick={() => {
+                        void navigator.clipboard.writeText(plaintext);
+                        setCopied(true);
+                      }}
+                    >
+                      <FiCopy /> {copied ? "Copied" : "Copy key"}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <form onSubmit={create} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="key-label">Label</Label>
+                    <Input
+                      id="key-label"
+                      required
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value)}
+                      placeholder="training-box-1"
+                    />
+                  </div>
+                  {error && (
+                    <p role="alert" className="text-sm text-warning">
+                      {error}
+                    </p>
+                  )}
+                  <DialogFooter>
+                    <Button type="submit" disabled={busy}>
+                      {busy ? "Creating…" : "Create key"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
+            </DialogContent>
+          </Dialog>
+        </span>
       </div>
 
       <Table>
@@ -204,36 +210,29 @@ export function KeysManager({
             {isAdmin && <TableHead>Owner</TableHead>}
             <TableHead>Created</TableHead>
             <TableHead>Last used</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead className="w-40" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {keys.map((k) => (
-            <TableRow key={k.id}>
-              <TableCell className="font-medium">{k.label}</TableCell>
-              {isAdmin && (
-                <TableCell className="text-xs text-muted-foreground">
-                  {k.ownerEmail}
-                </TableCell>
-              )}
-              <TableCell className="text-xs text-muted-foreground">
-                {new Date(k.createdAt).toLocaleDateString()}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {k.lastUsedAt
-                  ? new Date(k.lastUsedAt).toLocaleString()
-                  : "Never"}
-              </TableCell>
-              <TableCell>
-                {k.revokedAt ? (
-                  <Badge variant="warning">Revoked</Badge>
-                ) : (
-                  <Badge variant="active">Active</Badge>
+          {keys
+            .filter((k) => !k.revokedAt)
+            .map((k) => (
+              <TableRow key={k.id}>
+                <TableCell className="font-medium">{k.label}</TableCell>
+                {isAdmin && (
+                  <TableCell className="text-xs text-muted-foreground">
+                    {k.ownerEmail}
+                  </TableCell>
                 )}
-              </TableCell>
-              <TableCell>
-                {!k.revokedAt && (
+                <TableCell className="text-xs text-muted-foreground">
+                  {new Date(k.createdAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {k.lastUsedAt
+                    ? new Date(k.lastUsedAt).toLocaleString()
+                    : "Never"}
+                </TableCell>
+                <TableCell>
                   <span className="flex gap-1">
                     <Button
                       variant="rotate"
@@ -264,17 +263,17 @@ export function KeysManager({
                       Revoke
                     </Button>
                   </span>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {keys.length === 0 && (
+                </TableCell>
+              </TableRow>
+            ))}
+          {keys.filter((k) => !k.revokedAt).length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={isAdmin ? 6 : 5}
+                colSpan={isAdmin ? 5 : 4}
                 className="py-8 text-center text-muted-foreground"
               >
-                No keys yet. Create one to connect a training script.
+                No active keys. Create one to connect a training script —
+                revoked keys live under History.
               </TableCell>
             </TableRow>
           )}

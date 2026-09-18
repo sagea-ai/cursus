@@ -9,12 +9,12 @@ export function StatusBadge({ status }: { status: string }) {
     return (
       <Badge variant="default">
         <span className="status-running-dot inline-block size-1.5 rounded-full bg-accent-pale" />
-        running
+        R
       </Badge>
     );
   }
   if (status === "FINISHED") {
-    return <Badge variant="secondary">finished</Badge>;
+    return <Badge variant="secondary">Finished</Badge>;
   }
   return (
     <Badge

@@ -236,7 +236,7 @@ export function KeysManager({
                 {!k.revokedAt && (
                   <span className="flex gap-1">
                     <Button
-                      variant="ghost"
+                      variant="rotate"
                       size="sm"
                       onClick={() =>
                         setConfirming({
@@ -250,7 +250,7 @@ export function KeysManager({
                       Rotate
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="revoke"
                       size="sm"
                       onClick={() =>
                         setConfirming({

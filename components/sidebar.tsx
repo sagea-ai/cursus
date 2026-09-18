@@ -14,8 +14,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 
-import { SignOutButton } from "@/components/sign-out-button";
-import { Badge } from "@/components/ui/badge";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
 const SECTIONS: {
@@ -163,25 +162,13 @@ export function Sidebar({
       })}
 
       <div className="mt-auto flex flex-col gap-2 border-t border-[#e5e2dc] pt-3">
-        {!collapsed && (
-          <Badge variant="secondary" className="w-fit">
-            {isAdmin ? "super admin" : "member"}
-          </Badge>
-        )}
-        {collapsed ? (
-          <span
-            title={`${displayName} (${email})`}
-            className="mx-auto flex size-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary-ink"
-          >
-            {(displayName || email).charAt(0).toUpperCase()}
-          </span>
-        ) : (
-          <SignOutButton
-            email={email}
-            name={displayName}
-            profileHref={`/${orgSlug}/profile`}
-          />
-        )}
+        <UserMenu
+          email={email}
+          displayName={displayName}
+          role={role}
+          profileHref={`/${orgSlug}/profile`}
+          collapsed={collapsed}
+        />
       </div>
     </aside>
   );

@@ -310,7 +310,9 @@ test("critical journey: bootstrap to restricted member", async ({
   expect(link).toContain("/invite/");
   // The open dialog traps focus — close it before touching the sidebar.
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Sign out" }).click();
+  // Account menu in the sidebar: open it, then sign out from the menu.
+  await page.getByRole("button", { name: /Account:/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL("/login");
 
   await page.goto(link);

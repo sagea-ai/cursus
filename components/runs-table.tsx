@@ -22,6 +22,7 @@ export interface RunRow {
   name: string;
   status: string;
   tags: string[];
+  notes: string;
   summary: Record<string, number>;
   createdBy: string;
   startedAt: string;
@@ -37,11 +38,20 @@ function duration(start: string, end: string | null): string {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
+const SORT_OPTIONS = [
+  { value: "recent", label: "Recent" },
+  { value: "oldest", label: "Oldest" },
+  { value: "name_asc", label: "Name A–Z" },
+  { value: "name_desc", label: "Name Z–A" },
+] as const;
+
 export function RunsTable({
   runs,
+  sort,
   basePath,
 }: {
   runs: RunRow[];
+  sort: string;
   basePath: string;
 }) {
   const [query, setQuery] = React.useState("");
@@ -95,6 +105,23 @@ export function RunsTable({
             </Button>
           ),
         )}
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          Sort:
+          {SORT_OPTIONS.map((o) => (
+            <Link
+              key={o.value}
+              href={`${basePath}?sort=${o.value}`}
+              aria-current={sort === o.value ? "true" : undefined}
+              className={
+                sort === o.value
+                  ? "rounded px-1.5 py-1 font-medium text-foreground underline underline-offset-4"
+                  : "rounded px-1.5 py-1 hover:text-foreground"
+              }
+            >
+              {o.label}
+            </Link>
+          ))}
+        </span>
         <div className="ml-auto">
           <Link
             href={
@@ -120,8 +147,10 @@ export function RunsTable({
             <TableHead className="w-10" />
             <TableHead>Status</TableHead>
             <TableHead>Name</TableHead>
+            <TableHead>Notes</TableHead>
             <TableHead>Tags</TableHead>
             <TableHead>By</TableHead>
+            <TableHead>Created</TableHead>
             <TableHead>Duration</TableHead>
             {summaryKeys.map((k) => (
               <TableHead key={k} className="font-mono text-[11px]">
@@ -156,6 +185,12 @@ export function RunsTable({
                   {r.name}
                 </Link>
               </TableCell>
+              <TableCell
+                className="max-w-48 truncate text-xs text-muted-foreground"
+                title={r.notes || undefined}
+              >
+                {r.notes || "—"}
+              </TableCell>
               <TableCell>
                 <span className="flex flex-wrap gap-1">
                   {r.tags.map((t) => (
@@ -167,6 +202,9 @@ export function RunsTable({
               </TableCell>
               <TableCell className="max-w-40 truncate text-xs text-muted-foreground">
                 {r.createdBy}
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                {new Date(r.startedAt).toLocaleDateString()}
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">
                 {duration(r.startedAt, r.finishedAt)}
@@ -183,7 +221,7 @@ export function RunsTable({
           {filtered.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={6 + summaryKeys.length}
+                colSpan={8 + summaryKeys.length}
                 className="py-8 text-center text-muted-foreground"
               >
                 No runs match. Log one from a training script to get started.

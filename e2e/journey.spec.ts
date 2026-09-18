@@ -96,6 +96,17 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page.getByRole("link", { name: /e2e-proj/ })).toBeVisible();
 
+  // 3a. Project overview: stats, API docs, and rename.
+  await page.goto(`/${orgSlug}/e2e-proj`);
+  await expect(page.getByText("Total runs")).toBeVisible();
+  await expect(page.getByText("Export metrics to CSV")).toBeVisible();
+  await page.getByRole("button", { name: "Rename project" }).click();
+  await page.getByRole("textbox", { name: "Project name" }).fill("E2E Renamed");
+  await page.getByRole("button", { name: "Save project name" }).click();
+  await expect(
+    page.getByRole("heading", { name: "E2E Renamed" }),
+  ).toBeVisible();
+
   // 4. Create an API key via UI (reveal-once) and log runs SDK-style.
   await page.goto(`/${orgSlug}/settings/keys`);
   await page.getByRole("button", { name: "Create Key" }).click();
@@ -136,10 +147,14 @@ test("critical journey: bootstrap to restricted member", async ({
     expect(fin.ok()).toBeTruthy();
   }
 
-  // 5. Run list shows both; detail renders charts + config.
+  // 5. Run list shows both; sort control reorders server-side.
   await page.goto(`/${orgSlug}/e2e-proj/runs`);
   await expect(page.getByRole("link", { name: "run-a" })).toBeVisible();
   await expect(page.getByRole("link", { name: "run-b" })).toBeVisible();
+  await page.getByRole("link", { name: "Name A–Z" }).click();
+  await expect(page).toHaveURL(/sort=name_asc/);
+  const firstRow = page.getByRole("row").nth(1);
+  await expect(firstRow.getByRole("link", { name: "run-a" })).toBeVisible();
   await page.getByRole("link", { name: "run-a" }).click();
   await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
   await page.locator("svg").first().waitFor({ timeout: 15_000 });
@@ -154,6 +169,12 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(
     page.getByRole("heading", { name: "run-a-renamed" }),
   ).toBeVisible();
+
+  // Overview tab: run path plus editable notes.
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await page.getByLabel("Notes").fill("e2e was here");
+  await page.getByRole("button", { name: "Save notes" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
 
   // 6. Compare two runs: overlay + config diff (lr differs).
   await page.goto(`/${orgSlug}/e2e-proj/runs/compare?ids=${runIds.join(",")}`);

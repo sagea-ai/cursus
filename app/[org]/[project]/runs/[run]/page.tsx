@@ -5,13 +5,12 @@ import { ConfigViewer } from "@/components/config-viewer";
 import { ExportMenu } from "@/components/export-menu";
 import { RunCharts } from "@/components/run-charts";
 import { RunHeaderEditor } from "@/components/run-header-editor";
+import { RunOverview } from "@/components/run-overview";
 import { StatusBadge } from "@/components/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requirePageSession } from "@/lib/page-auth";
 import { getRun } from "@/lib/runs";
 
-// NOTE (M3 follow-up): run rename + tag editing live here per §7.6. Display
-// only in M2 — the PATCH endpoint + inline editing land with M3 polish.
 export default async function RunDetailPage({
   params,
 }: {
@@ -61,6 +60,7 @@ export default async function RunDetailPage({
       <Tabs defaultValue="charts">
         <TabsList>
           <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="config">Config</TabsTrigger>
         </TabsList>
         <TabsContent value="charts">
@@ -68,6 +68,19 @@ export default async function RunDetailPage({
             runId={detail.id}
             metricKeys={detail.keys}
             live={detail.status === "RUNNING"}
+          />
+        </TabsContent>
+        <TabsContent value="overview">
+          <RunOverview
+            runId={detail.id}
+            runPath={`${org.slug}/${projectSlug}/${detail.id}`}
+            status={detail.status}
+            createdBy={detail.createdBy}
+            startedAt={detail.startedAt.toISOString()}
+            finishedAt={
+              detail.finishedAt ? detail.finishedAt.toISOString() : null
+            }
+            initialNotes={detail.notes}
           />
         </TabsContent>
         <TabsContent value="config">

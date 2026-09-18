@@ -120,7 +120,8 @@ model Run {
   finishedAt  DateTime?
   updatedAt   DateTime  @updatedAt // heartbeat target, see PRD §6.3
 
-  metrics Metric[]
+  metrics     Metric[]
+  artifactsProduced ArtifactVersion[]
 
   @@index([projectId])
   @@index([status])
@@ -137,4 +138,62 @@ model Metric {
   wallTime DateTime @default(now())
 
   @@index([runId, key, step])
+}
+
+// --- Artifacts (v1, scoped) ------------------------------------------------
+// Run-attached, versioned files (checkpoints, datasets, logs). What this is
+// NOT: no aliases, no lineage graph, no model registry linking — those are
+// deferred, and this schema does not pretend otherwise (no alias/edge
+// tables). File bytes live in Postgres (bytea) to keep self-hosting to one
+// database; practical cap ~100MB/file enforced at upload (see lib/artifacts).
+// An S3-compatible backend is the documented v2 escape hatch.
+
+model Artifact {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   @default("model")
+  description String   @default("")
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  versions    ArtifactVersion[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model ArtifactVersion {
+  id            String   @id @default(cuid())
+  artifactId    String
+  artifact      Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  version       Int
+  // sha256 over sorted "path:digest" pairs — deterministic, no extra reads.
+  digest        String
+  sizeBytes     BigInt
+  fileCount     Int
+  description   String   @default("")
+  createdByRunId String?
+  // Run deletion keeps artifact history (SetNull, not Cascade).
+  createdByRun  Run?     @relation(fields: [createdByRunId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  files         ArtifactFile[]
+
+  @@unique([artifactId, version])
+  @@index([artifactId])
+  @@index([createdByRunId])
+}
+
+model ArtifactFile {
+  id        String   @id @default(cuid())
+  versionId String
+  version   ArtifactVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  path      String
+  sizeBytes BigInt
+  digest    String   // sha256 hex of the bytes
+  data      Bytes
+
+  @@unique([versionId, path])
+  @@index([versionId])
 }

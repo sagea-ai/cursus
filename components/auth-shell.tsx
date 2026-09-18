@@ -16,16 +16,14 @@ export function AuthShell({
   return (
     <main className="flex min-h-screen bg-[#f4f4f5] text-neutral-900">
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-        <span className="rounded-xl bg-neutral-900 px-6 py-3.5">
           <Image
             src="/sagea_banner.png"
             alt="SAGEA"
             width={600}
             height={163}
-            className="h-9 w-auto"
+            className="h-9 w-auto invert"
             priority
           />
-        </span>
         <p className="mt-4 text-[15px] font-medium text-neutral-700">
           {tagline}
         </p>

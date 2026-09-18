@@ -43,7 +43,7 @@ export function LoginForm() {
       tagline="Experiment tracking by SAGEA"
       footnote={
         <p>
-          By continuing, you agree to the SAGEA Noncommercial License. Cursus is
+          By continuing, you agree to the <a className="text-blue-500 underline" href="https://github.com/sagea-ai/cursus/blob/main/LICENSE">SAGEA Noncommercial License</a>. Cursus is
           free to use and adapt, but not for commercial sale.
         </p>
       }

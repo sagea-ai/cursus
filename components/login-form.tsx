@@ -44,7 +44,7 @@ export function LoginForm() {
             alt="SAGEA"
             width={600}
             height={163}
-            className="h-9 w-auto"
+            className="h-9 w-auto invert"
             priority
           />
         <p className="mt-4 text-[15px] font-medium text-neutral-700">

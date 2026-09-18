@@ -127,11 +127,11 @@ test("critical journey: bootstrap to restricted member", async ({
   expect(firstPlaintext).toMatch(/^cursus_/);
   await page.keyboard.press("Escape");
 
-  // 4a. Rotate (reshuffle) the key in the UI: replacement revealed once,
-  // old secret dies immediately. (confirm() dialogs auto-dismiss in
-  // Playwright, so accept this one explicitly.)
-  page.on("dialog", (d) => void d.accept());
+  // 4a. Rotate (reshuffle) the key in the UI: confirm in the dialog,
+  // replacement revealed once, old secret dies immediately.
   await page.getByRole("button", { name: "Rotate" }).click();
+  await expect(page.getByText("Rotate API key")).toBeVisible();
+  await page.getByRole("button", { name: "Rotate key", exact: true }).click();
   await expect(page.getByText("Key rotated")).toBeVisible();
   const plaintext =
     (await page.locator("code").last().textContent())?.trim() ?? "";

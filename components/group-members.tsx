@@ -5,6 +5,7 @@ import * as React from "react";
 import { FiUserPlus, FiX } from "react-icons/fi";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -34,6 +35,11 @@ export function GroupMembers({
   >([]);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [removing, setRemoving] = React.useState<{
+    id: string;
+    email: string;
+  } | null>(null);
+  const [removeBusy, setRemoveBusy] = React.useState(false);
 
   // Existing org members for the autocomplete suggestions (the input still
   // accepts any typed address — the server verifies org membership).
@@ -80,16 +86,28 @@ export function GroupMembers({
     router.refresh();
   }
 
-  async function remove(id: string, targetEmail: string) {
-    if (!confirm(`Remove ${targetEmail} from this group?`)) return;
-    const res = await fetch(`/api/v1/groups/${groupSlug}/members/${id}`, {
-      method: "DELETE",
-    });
+  async function remove(id: string) {
+    setRemoving(
+      members.find((m) => m.id === id) ?? { id, email: "this member" },
+    );
+  }
+
+  async function runRemove() {
+    if (!removing) return;
+    setRemoveBusy(true);
+    setError(null);
+    const res = await fetch(
+      `/api/v1/groups/${groupSlug}/members/${removing.id}`,
+      { method: "DELETE" },
+    );
+    setRemoveBusy(false);
     if (!res.ok) {
       const body = await res.json();
-      alert(body.error ?? "Could not remove member");
+      setError(body.error ?? "Could not remove member");
+      setRemoving(null);
       return;
     }
+    setRemoving(null);
     router.refresh();
   }
 
@@ -148,7 +166,7 @@ export function GroupMembers({
                     variant="ghost"
                     size="icon"
                     aria-label={`Remove ${m.email}`}
-                    onClick={() => void remove(m.id, m.email)}
+                    onClick={() => remove(m.id)}
                   >
                     <FiX />
                   </Button>
@@ -168,6 +186,26 @@ export function GroupMembers({
           )}
         </TableBody>
       </Table>
+      {error && (
+        <p role="alert" className="text-sm text-warning">
+          {error}
+        </p>
+      )}
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(o) => {
+          if (!o) setRemoving(null);
+        }}
+        title="Remove member"
+        description={
+          removing
+            ? `Remove ${removing.email} from this group? They immediately lose access to its projects and runs.`
+            : ""
+        }
+        confirmLabel="Remove member"
+        busy={removeBusy}
+        onConfirm={() => void runRemove()}
+      />
     </div>
   );
 }

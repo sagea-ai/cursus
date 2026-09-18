@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Card,
   CardContent,
@@ -22,15 +23,9 @@ export function OnboardingStatusCard({
   const [disabled, setDisabled] = React.useState(initialDisabled);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
 
-  async function disable() {
-    if (
-      !confirm(
-        "Permanently disable onboarding? The setup page will never work again, on any database state. This cannot be undone.",
-      )
-    ) {
-      return;
-    }
+  async function runDisable() {
     setBusy(true);
     setError(null);
     const res = await fetch("/api/v1/settings/onboarding", {
@@ -42,8 +37,10 @@ export function OnboardingStatusCard({
     if (!res.ok) {
       const body = await res.json();
       setError(body.error ?? "Could not disable onboarding");
+      setConfirming(false);
       return;
     }
+    setConfirming(false);
     setDisabled(true);
   }
 
@@ -75,13 +72,24 @@ export function OnboardingStatusCard({
           <div>
             <Button
               variant="secondary"
-              onClick={() => void disable()}
+              onClick={() => setConfirming(true)}
               disabled={busy}
             >
-              {busy ? "Disabling…" : "Disable permanently"}
+              Disable permanently
             </Button>
           </div>
         )}
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={(o) => {
+            if (!o) setConfirming(false);
+          }}
+          title="Disable onboarding"
+          description="Permanently disable onboarding? The setup page will never work again, on any database state. This cannot be undone."
+          confirmLabel="Disable permanently"
+          busy={busy}
+          onConfirm={() => void runDisable()}
+        />
       </CardContent>
     </Card>
   );

@@ -6,6 +6,7 @@ import { FiCheck, FiEdit2, FiPlus, FiTrash2, FiX } from "react-icons/fi";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 
 // Inline run rename + tag editing (§7.6) and admin delete. PATCH/DELETE
@@ -29,6 +30,8 @@ export function RunHeaderEditor({
   const [tags, setTags] = React.useState(initialTags);
   const [newTag, setNewTag] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
 
   async function patch(body: { name?: string; tags?: string[] }) {
     setError(null);
@@ -73,17 +76,18 @@ export function RunHeaderEditor({
   }
 
   async function removeRun() {
-    if (
-      !confirm(
-        `Delete run "${initialName}" and all its metrics? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
+    setConfirmDelete(true);
+  }
+
+  async function runDelete() {
+    setDeleteBusy(true);
+    setError(null);
     const res = await fetch(`/api/v1/runs/${runId}`, { method: "DELETE" });
+    setDeleteBusy(false);
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error ?? "Delete failed");
+      setError(data.error ?? "Delete failed");
+      setConfirmDelete(false);
       return;
     }
     router.push(runsPath);
@@ -191,6 +195,17 @@ export function RunHeaderEditor({
           {error}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDelete(false);
+        }}
+        title="Delete run"
+        description={`Delete run "${initialName}" and all its metrics? This cannot be undone.`}
+        confirmLabel="Delete run"
+        busy={deleteBusy}
+        onConfirm={() => void runDelete()}
+      />
     </div>
   );
 }

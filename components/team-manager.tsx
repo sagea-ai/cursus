@@ -6,6 +6,7 @@ import { FiCopy, FiMoreVertical, FiUserPlus } from "react-icons/fi";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,12 @@ export function TeamManager({
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [deactivating, setDeactivating] = React.useState<{
+    id: string;
+    email: string;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +84,7 @@ export function TeamManager({
   }
 
   async function setRole(id: string, role: string) {
+    setActionError(null);
     const res = await fetch(`/api/v1/team/members/${id}/role`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -84,28 +92,26 @@ export function TeamManager({
     });
     if (!res.ok) {
       const body = await res.json();
-      alert(body.error ?? "Could not change role");
+      setActionError(body.error ?? "Could not change role");
       return;
     }
     router.refresh();
   }
 
-  async function remove(id: string, targetEmail: string) {
-    if (
-      !confirm(
-        `Deactivate ${targetEmail}? They lose access immediately and their API keys are revoked. Their runs stay attributed to them.`,
-      )
-    ) {
-      return;
-    }
-    const res = await fetch(`/api/v1/team/members/${id}`, {
+  async function runDeactivate() {
+    if (!deactivating) return;
+    setConfirmBusy(true);
+    setActionError(null);
+    const res = await fetch(`/api/v1/team/members/${deactivating.id}`, {
       method: "DELETE",
     });
+    setConfirmBusy(false);
     if (!res.ok) {
       const body = await res.json();
-      alert(body.error ?? "Could not deactivate");
+      setActionError(body.error ?? "Could not deactivate");
       return;
     }
+    setDeactivating(null);
     router.refresh();
   }
 
@@ -235,7 +241,9 @@ export function TeamManager({
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
-                        onClick={() => void remove(m.id, m.email)}
+                        onClick={() =>
+                          setDeactivating({ id: m.id, email: m.email })
+                        }
                       >
                         Deactivate
                       </DropdownMenuItem>
@@ -247,6 +255,26 @@ export function TeamManager({
           ))}
         </TableBody>
       </Table>
+      {actionError && (
+        <p role="alert" className="text-sm text-warning">
+          {actionError}
+        </p>
+      )}
+      <ConfirmDialog
+        open={deactivating !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeactivating(null);
+        }}
+        title="Deactivate member"
+        description={
+          deactivating
+            ? `Deactivate ${deactivating.email}? They lose access immediately and their API keys are revoked. Their runs stay attributed to them.`
+            : ""
+        }
+        confirmLabel="Deactivate"
+        busy={confirmBusy}
+        onConfirm={() => void runDeactivate()}
+      />
     </div>
   );
 }

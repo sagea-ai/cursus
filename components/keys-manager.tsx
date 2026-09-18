@@ -300,7 +300,9 @@ export function KeysManager({
               ? `Revoke ${describeKey(confirming.label, confirming.owner)}? Any training job using it will fail to log from that moment on.`
               : ""
         }
-        confirmLabel={confirming?.kind === "rotate" ? "Rotate key" : "Revoke key"}
+        confirmLabel={
+          confirming?.kind === "rotate" ? "Rotate key" : "Revoke key"
+        }
         busy={confirmBusy}
         onConfirm={() => void runConfirmedAction()}
       />

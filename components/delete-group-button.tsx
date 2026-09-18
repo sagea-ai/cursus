@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import * as React from "react";
 import { FiTrash2 } from "react-icons/fi";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export function DeleteGroupButton({
   groupSlug,
@@ -13,38 +15,59 @@ export function DeleteGroupButton({
   groupName: string;
 }) {
   const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  async function onDelete(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (
-      !confirm(
-        `Delete group "${groupName}"? Its projects become org-wide; members, runs, and history are kept.`,
-      )
-    ) {
-      return;
-    }
+  async function runDelete() {
+    setBusy(true);
+    setError(null);
     const res = await fetch(`/api/v1/groups/${groupSlug}`, {
       method: "DELETE",
     });
+    setBusy(false);
     if (!res.ok) {
       const body = await res.json();
-      alert(body.error ?? "Delete failed");
+      setError(body.error ?? "Delete failed");
       return;
     }
+    setOpen(false);
     router.refresh();
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={onDelete}
-      aria-label={`Delete group ${groupName}`}
-      title="Delete group (super admin)"
-      className="text-warning"
-    >
-      <FiTrash2 />
-    </Button>
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setError(null);
+          setOpen(true);
+        }}
+        aria-label={`Delete group ${groupName}`}
+        title="Delete group (super admin)"
+        className="text-warning"
+      >
+        <FiTrash2 />
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o) setOpen(false);
+        }}
+        title="Delete group"
+        description={`Delete group "${groupName}"? Its projects become org-wide; members, runs, and history are kept.`}
+        confirmLabel="Delete group"
+        busy={busy}
+        onConfirm={() => void runDelete()}
+      />
+      {error && (
+        <span role="alert" className="text-xs text-warning">
+          {error}
+        </span>
+      )}
+    </>
   );
 }

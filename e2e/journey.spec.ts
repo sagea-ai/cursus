@@ -98,12 +98,9 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("button", { name: "New Project" }).click();
   await page.getByLabel("Name").fill("e2e-proj");
   await page.getByRole("button", { name: "Create project" }).click();
-  // Whole card is clickable via an (empty, aria-labeled) overlay link —
-  // assert the title text, then force-click the overlay like a pointer would.
+  // Whole-row tables link by name; the card grid is gone.
   await expect(page.getByText("e2e-proj", { exact: true })).toBeVisible();
-  await page
-    .getByRole("link", { name: "Open project e2e-proj" })
-    .click({ force: true });
+  await page.getByRole("link", { name: "e2e-proj", exact: true }).click();
   await expect(page).toHaveURL(`/${orgSlug}/e2e-proj`);
 
   // 3a. Project overview: stats, API docs, rename, and API-keys tab.

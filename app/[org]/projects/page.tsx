@@ -1,5 +1,5 @@
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { ProjectGrid } from "@/components/project-grid";
+import { ProjectsTable } from "@/components/projects-table";
 import {
   Card,
   CardContent,
@@ -50,7 +50,7 @@ cursus.finish()`}
           </CardContent>
         </Card>
       ) : (
-        <ProjectGrid
+        <ProjectsTable
           projects={projects}
           orgSlug={org.slug}
           isAdmin={session.role === "SUPER_ADMIN"}

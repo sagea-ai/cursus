@@ -1,8 +1,5 @@
-import Link from "next/link";
-import { FiLayers } from "react-icons/fi";
-
+import { GroupsTable } from "@/components/groups-table";
 import { NewGroupDialog } from "@/components/new-group-dialog";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -65,32 +62,11 @@ cursus.finish()`}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {groups.map((g) => (
-            <Link key={g.id} href={`/${org.slug}/groups/${g.slug}`}>
-              <Card className="transition-colors hover:border-primary/60">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FiLayers className="size-4 text-accent-soft" />
-                    {g.name}
-                  </CardTitle>
-                  <CardDescription>
-                    {g.memberCount} member{g.memberCount === 1 ? "" : "s"} ·{" "}
-                    {g.runCount} run{g.runCount === 1 ? "" : "s"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-1.5">
-                  <Badge variant="secondary">/{g.slug}</Badge>
-                  {g.description && (
-                    <span className="w-full truncate text-xs text-muted-foreground">
-                      {g.description}
-                    </span>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <GroupsTable
+          groups={groups}
+          orgSlug={org.slug}
+          isAdmin={session.role === "SUPER_ADMIN"}
+        />
       )}
     </main>
   );

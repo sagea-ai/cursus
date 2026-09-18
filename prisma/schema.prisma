@@ -103,6 +103,9 @@ model Run {
   projectId   String
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
+  // Free-text notes (W&B "Add notes..." column). Edited on the run detail
+  // Overview tab, displayed truncated in the run table.
+  notes       String    @default("")
   status      RunStatus @default(RUNNING)
   config      Json      @default("{}")
   tags        String[]  @default([])

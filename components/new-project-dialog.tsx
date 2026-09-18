@@ -47,7 +47,7 @@ export function NewProjectDialog({ orgSlug }: { orgSlug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [open ]);
+  }, [open]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

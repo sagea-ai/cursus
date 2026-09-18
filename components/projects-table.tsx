@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { FiStar } from "react-icons/fi";
+import { FiStar, FiUsers } from "react-icons/fi";
 
 import { DeleteProjectButton } from "@/components/delete-project-button";
 import { StatusBadge } from "@/components/status-badge";
@@ -93,13 +93,19 @@ export function ProjectsTable({
                 {timeAgo(p.lastRunAt)}
               </TableCell>
               <TableCell>
-                {p.group ? (
-                  <Link href={`/${orgSlug}/groups/${p.group.slug}`}>
-                    <Badge variant="default">{p.group.slug}</Badge>
-                  </Link>
-                ) : (
-                  <Badge variant="secondary">Org-wide</Badge>
-                )}
+                <span className="flex items-center gap-1.5">
+                  <FiUsers
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                  {p.group ? (
+                    <Link href={`/${orgSlug}/groups/${p.group.slug}`}>
+                      <Badge variant="default">{p.group.slug}</Badge>
+                    </Link>
+                  ) : (
+                    <Badge variant="secondary">Org-wide</Badge>
+                  )}
+                </span>
               </TableCell>
               <TableCell className="text-right font-mono text-xs">
                 {p.runCount}
@@ -125,7 +131,11 @@ export function ProjectsTable({
                 <span className="flex items-center justify-end gap-0.5">
                   <button
                     onClick={() => toggleStar(p.id)}
-                    aria-label={starred.includes(p.id) ? `Unstar ${p.name}` : `Star ${p.name}`}
+                    aria-label={
+                      starred.includes(p.id)
+                        ? `Unstar ${p.name}`
+                        : `Star ${p.name}`
+                    }
                     aria-pressed={starred.includes(p.id)}
                     className={
                       starred.includes(p.id)

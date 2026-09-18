@@ -22,7 +22,9 @@ export default async function TeamPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-8">
       <div>
-        <p className="text-sm bg-green-500 rounded-sm inline-block text-white px-2 py-1 text-bold">{org.name}</p>
+        <p className="text-sm bg-green-500 rounded-sm inline-block text-white px-2 py-1 text-bold">
+          {org.name}
+        </p>
         <h1 className="text-2xl mt-2 font-semibold">Team</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage Your Team on Cursus.

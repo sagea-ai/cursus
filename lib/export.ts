@@ -1,3 +1,4 @@
+import { toCsvCell } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { slugify } from "@/lib/runs";
 import type { ExportQuery } from "@/lib/validation";
@@ -16,15 +17,6 @@ interface ExportRow {
   step: number;
   value: number;
   wallTime: Date;
-}
-
-/** Minimal RFC-4180 cell escaping (keys are user-controlled strings). */
-export function toCsvCell(value: string | number): string {
-  const s = String(value);
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
 }
 
 function csvChunk(rows: ExportRow[]): string {

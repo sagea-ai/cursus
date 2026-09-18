@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toCsvCell } from "./export";
+import { toCsvCell } from "./csv";
 
 describe("toCsvCell", () => {
   it("leaves plain values alone", () => {

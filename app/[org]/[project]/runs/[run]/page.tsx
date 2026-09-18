@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ConfigViewer } from "@/components/config-viewer";
+import { ExportMenu } from "@/components/export-menu";
 import { RunCharts } from "@/components/run-charts";
 import { RunHeaderEditor } from "@/components/run-header-editor";
 import { StatusBadge } from "@/components/status-badge";
@@ -50,6 +51,7 @@ export default async function RunDetailPage({
             runsPath={`/${org.slug}/${projectSlug}/runs`}
           />
           <StatusBadge status={detail.status} />
+          <ExportMenu runId={detail.id} />
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           by {detail.createdBy} · started {detail.startedAt.toLocaleString()}

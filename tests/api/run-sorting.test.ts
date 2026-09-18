@@ -32,7 +32,10 @@ async function listedNames(
   query: string,
 ): Promise<string[]> {
   const res = await listGET(
-    await authedRequest(`/api/v1/projects/${project}/runs?${query}`, org.member),
+    await authedRequest(
+      `/api/v1/projects/${project}/runs?${query}`,
+      org.member,
+    ),
     { params: Promise.resolve({ project }) },
   );
   expect(res.status).toBe(200);

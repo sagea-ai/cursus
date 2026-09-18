@@ -164,7 +164,8 @@ export async function getProjectOverview(
   for (const r of project.runs) {
     statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
     if (!lastActiveAt || r.startedAt > lastActiveAt) lastActiveAt = r.startedAt;
-    totalComputeMs += (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
+    totalComputeMs +=
+      (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
     const key = r.createdBy.email;
     const entry = byUser.get(key) ?? {
       email: key,

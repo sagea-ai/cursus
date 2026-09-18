@@ -88,7 +88,8 @@ describe.skipIf(!apiTestsEnabled)("projects routes", () => {
     }
   });
 
-  it("project delete: admin cascades, member → 403", async () => {    const org = await createTestOrg("projdel");
+  it("project delete: admin cascades, member → 403", async () => {
+    const org = await createTestOrg("projdel");
     try {
       await createPOST(
         await authedRequest("/api/v1/x", org.member, {
@@ -210,9 +211,9 @@ describe.skipIf(!apiTestsEnabled)("projects routes", () => {
         await authedRequest("/api/v1/x", org.member),
         deleteParams(org.orgSlug, "old-name"),
       );
-      expect(
-        ((await ov.json()).project as { name: string }).name,
-      ).toBe("New Name");
+      expect(((await ov.json()).project as { name: string }).name).toBe(
+        "New Name",
+      );
 
       const anon = await renamePATCH(
         apiRequest("/api/v1/x", {

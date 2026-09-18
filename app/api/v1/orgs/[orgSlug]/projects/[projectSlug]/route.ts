@@ -16,9 +16,7 @@ export async function GET(
   try {
     const { orgSlug, projectSlug } = await ctx.params;
     const auth = await authenticateRequest(request);
-    return Response.json(
-      await getProjectOverview(auth, orgSlug, projectSlug),
-    );
+    return Response.json(await getProjectOverview(auth, orgSlug, projectSlug));
   } catch (e) {
     return toErrorResponse(e);
   }

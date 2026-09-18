@@ -1,6 +1,7 @@
 import { toCsvCell } from "@/lib/csv";
 import { db } from "@/lib/db";
-import { slugify } from "@/lib/runs";
+import { runVisibilityFilter, type GroupAuth } from "@/lib/groups";
+import { slugify } from "@/lib/slug";
 import type { ExportQuery } from "@/lib/validation";
 import { KeyAuthError } from "@/lib/api-auth";
 
@@ -40,12 +41,16 @@ function jsonChunk(rows: ExportRow[]): string {
 }
 
 export async function exportRunMetrics(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
   query: ExportQuery,
 ): Promise<Response> {
   const run = await db.run.findFirst({
-    where: { id: runId, project: { orgId: auth.orgId } },
+    where: {
+      id: runId,
+      project: { orgId: auth.orgId },
+      ...runVisibilityFilter(auth),
+    },
     select: { id: true, name: true },
   });
   if (!run) throw new KeyAuthError(404, "run not found");

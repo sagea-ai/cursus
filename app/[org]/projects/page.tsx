@@ -24,12 +24,7 @@ export default async function ProjectsPage({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">{org.name}</p>
-          <h1 className="text-2xl font-semibold">
-            Projects{" "}
-            <span className="text-base font-normal text-muted-foreground">
-              {projects.length}
-            </span>
-          </h1>
+          <h1 className="text-2xl font-semibold">Projects </h1>
         </div>
         <NewProjectDialog orgSlug={org.slug} />
       </div>

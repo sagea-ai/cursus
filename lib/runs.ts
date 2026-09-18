@@ -1,6 +1,15 @@
 import { db } from "@/lib/db";
 import { downsample } from "@/lib/downsampling";
+import {
+  assertRunVisible,
+  assertRunWritable,
+  canWriteGroup,
+  resolveGroup,
+  runVisibilityFilter,
+  type GroupAuth,
+} from "@/lib/groups";
 import { mergeSummary } from "@/lib/summary";
+import { slugify } from "@/lib/slug";
 import type {
   CreateRunInput,
   FinishRunInput,
@@ -12,8 +21,11 @@ import { KeyAuthError } from "@/lib/api-auth";
 import { requireRole, type Session } from "@/lib/auth";
 import { ApiError } from "@/lib/http";
 
-// (validate → auth → call service → return); everything testable lives here.
-// No N+1: every read uses a single query with select/include (PRD §9).
+// Thin route handlers live in app/api (validate → auth → call service →
+// return); everything testable lives here. No N+1: every read uses a single
+// query with select/include (PRD §9). Every run read applies
+// runVisibilityFilter (groups); every run write goes through the
+// assertRunWritable gate.
 
 export const API_VERSION = 1;
 
@@ -54,23 +66,12 @@ export async function markStaleRuns(
   return res.count;
 }
 
-export function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/_/g, "-")
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 128);
-}
-
 function shortId(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
 export async function createRun(
-  auth: { orgId: string; userId: string },
+  auth: GroupAuth & { userId: string },
   input: CreateRunInput,
 ): Promise<{ run_id: string; name: string; url: string }> {
   const slug = slugify(input.project) || "default";
@@ -83,6 +84,16 @@ export async function createRun(
     create: { orgId: auth.orgId, slug, name: input.project },
     select: { id: true, slug: true },
   });
+  // Group-scoped runs: the group must exist and the caller must belong to it
+  // (admins bypass). A non-member logging into someone's group is a 403.
+  let groupId: string | null = null;
+  if (input.group !== undefined) {
+    const group = await resolveGroup(auth.orgId, input.group);
+    if (!(await canWriteGroup(auth, group.id))) {
+      throw new ApiError(403, "not a member of this group");
+    }
+    groupId = group.id;
+  }
   const name = input.name ?? `run-${shortId()}`;
   const run = await db.run.create({
     data: {
@@ -90,6 +101,7 @@ export async function createRun(
       name,
       config: (input.config ?? {}) as object,
       tags: input.tags ?? [],
+      groupId,
       createdById: auth.userId,
     },
     select: { id: true, name: true },
@@ -111,11 +123,11 @@ async function assertRunInOrg(orgId: string, runId: string): Promise<string> {
 }
 
 export async function logBatch(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
   input: LogBatchInput,
 ): Promise<{ logged: number }> {
-  await assertRunInOrg(auth.orgId, runId);
+  await assertRunWritable(auth, runId);
   const rows = input.points.map((p) => ({
     runId,
     key: p.key,
@@ -146,11 +158,11 @@ const FINISH_MAP = {
 } as const;
 
 export async function finishRun(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
   input: FinishRunInput,
 ): Promise<{ run_id: string; status: string }> {
-  await assertRunInOrg(auth.orgId, runId);
+  await assertRunWritable(auth, runId);
   const run = await db.run.update({
     where: { id: runId },
     data: {
@@ -163,10 +175,10 @@ export async function finishRun(
 }
 
 export async function heartbeat(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
 ): Promise<{ run_id: string }> {
-  await assertRunInOrg(auth.orgId, runId);
+  await assertRunWritable(auth, runId);
   await db.run.update({
     where: { id: runId },
     data: { updatedAt: new Date() },
@@ -175,7 +187,7 @@ export async function heartbeat(
 }
 
 export async function listRuns(
-  auth: { orgId: string },
+  auth: GroupAuth,
   projectSlug: string,
   opts: { cursor?: string; limit?: number; sort?: RunListSort } = {},
 ): Promise<{
@@ -185,6 +197,7 @@ export async function listRuns(
     status: string;
     tags: string[];
     notes: string;
+    group: { slug: string; name: string } | null;
     summary: unknown;
     createdBy: string;
     startedAt: Date;
@@ -242,6 +255,7 @@ export async function listRuns(
   const rows = await db.run.findMany({
     where: {
       projectId: project.id,
+      ...runVisibilityFilter(auth),
       ...cursorFilter,
     },
     orderBy,
@@ -255,6 +269,7 @@ export async function listRuns(
       summary: true,
       startedAt: true,
       finishedAt: true,
+      group: { select: { slug: true, name: true } },
       createdBy: { select: { email: true } },
     },
   });
@@ -267,6 +282,7 @@ export async function listRuns(
       status: r.status,
       tags: r.tags,
       notes: r.notes,
+      group: r.group,
       summary: r.summary,
       createdBy: r.createdBy.email,
       startedAt: r.startedAt,
@@ -277,11 +293,11 @@ export async function listRuns(
 }
 
 export async function getMetrics(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
   opts: { key: string; maxPoints?: number; afterStep?: number },
 ): Promise<{ key: string; points: Array<{ step: number; value: number }> }> {
-  await assertRunInOrg(auth.orgId, runId);
+  await assertRunVisible(auth, runId);
   const rows = await db.metric.findMany({
     where: {
       runId,
@@ -309,16 +325,21 @@ export interface RunDetail {
   startedAt: Date;
   finishedAt: Date | null;
   project: { id: string; slug: string; name: string };
+  group: { slug: string; name: string } | null;
   keys: string[];
 }
 
 /** Single run + its metric keys for the detail/compare views. */
 export async function getRun(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
 ): Promise<RunDetail> {
   const run = await db.run.findFirst({
-    where: { id: runId, project: { orgId: auth.orgId } },
+    where: {
+      id: runId,
+      project: { orgId: auth.orgId },
+      ...runVisibilityFilter(auth),
+    },
     select: {
       id: true,
       name: true,
@@ -330,6 +351,7 @@ export async function getRun(
       startedAt: true,
       updatedAt: true,
       finishedAt: true,
+      group: { select: { slug: true, name: true } },
       createdBy: { select: { email: true } },
       project: { select: { id: true, slug: true, name: true } },
     },
@@ -363,25 +385,62 @@ export async function getRun(
     startedAt: run.startedAt,
     finishedAt,
     project: run.project,
+    group: run.group,
     keys: keyRows.map((k) => k.key).sort(),
   };
 }
 
-/** Rename / retag / annotate a run. Any org member. */
+/**
+ * Rename / retag / annotate / regroup a run. The caller must satisfy the
+ * write rule for the run's CURRENT group, and — when moving groups — for
+ * the TARGET group too (null target = org-wide, always allowed).
+ */
 export async function updateRun(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
   input: UpdateRunInput,
-): Promise<{ id: string; name: string; tags: string[]; notes: string }> {
-  await assertRunInOrg(auth.orgId, runId);
+): Promise<{
+  id: string;
+  name: string;
+  tags: string[];
+  notes: string;
+  group: { slug: string; name: string } | null;
+}> {
+  const current = await db.run.findFirst({
+    where: { id: runId, project: { orgId: auth.orgId } },
+    select: { id: true, groupId: true },
+  });
+  if (!current) throw new ApiError(404, "run not found");
+  if (current.groupId && !(await canWriteGroup(auth, current.groupId))) {
+    throw new ApiError(403, "not a member of this run's group");
+  }
+  let groupId: string | null | undefined;
+  if (input.group !== undefined) {
+    if (input.group === null) {
+      groupId = null;
+    } else {
+      const target = await resolveGroup(auth.orgId, input.group);
+      if (!(await canWriteGroup(auth, target.id))) {
+        throw new ApiError(403, "not a member of the target group");
+      }
+      groupId = target.id;
+    }
+  }
   const run = await db.run.update({
     where: { id: runId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      ...(groupId !== undefined ? { groupId } : {}),
     },
-    select: { id: true, name: true, tags: true, notes: true },
+    select: {
+      id: true,
+      name: true,
+      tags: true,
+      notes: true,
+      group: { select: { slug: true, name: true } },
+    },
   });
   return run;
 }

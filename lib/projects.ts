@@ -1,7 +1,8 @@
 import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
-import { slugify } from "@/lib/runs";
+import { runVisibilityFilter } from "@/lib/groups";
+import { slugify } from "@/lib/slug";
 
 // Project listing/creation for the dashboard (session auth). SDK run creation
 // upserts projects implicitly via POST /runs — this is the explicit path.
@@ -32,7 +33,8 @@ export async function listProjects(
 ): Promise<ProjectSummary[]> {
   requireAuth(session);
   const orgId = await orgIdFor(session, orgSlug);
-  // One query + one batched include (not N+1): only the fields the cards need.
+  // One query + one batched include (not N+1): only the fields the cards
+  // need. Counts/cards reflect VISIBLE runs only (group scoping applies).
   const projects = await db.project.findMany({
     where: { orgId },
     orderBy: { createdAt: "desc" },
@@ -41,7 +43,10 @@ export async function listProjects(
       slug: true,
       name: true,
       createdAt: true,
-      runs: { select: { status: true, startedAt: true } },
+      runs: {
+        where: runVisibilityFilter(session),
+        select: { status: true, startedAt: true },
+      },
     },
   });
   return projects
@@ -145,7 +150,10 @@ export async function getProjectOverview(
       slug: true,
       name: true,
       createdAt: true,
+      // Stats aggregate VISIBLE runs only — a member must not infer hidden
+      // runs from totals (counts, compute, contributors all scoped).
       runs: {
+        where: runVisibilityFilter(session),
         select: {
           status: true,
           startedAt: true,

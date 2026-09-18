@@ -24,6 +24,7 @@ def init(
     config: dict[str, Any] | None = None,
     name: str | None = None,
     tags: list[str] | None = None,
+    group: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> Run:
@@ -32,6 +33,9 @@ def init(
     Reads the API key from ``api_key`` > ``CURSUS_API_KEY`` env >
     ``~/.cursus/config``. Fails loudly on version mismatch or missing key —
     init is the one place raising is acceptable; log/finish never raise.
+
+    Pass ``group="slug"`` to scope the run to a group (you must belong to
+    it); omit it for an org-wide run visible to every member.
 
     Example:
         import sagea_cursus as cursus
@@ -53,7 +57,13 @@ def init(
             prev.finish()
         except Exception:  # noqa: BLE001,S110 — previous run must not break init
             pass
-    payload = client.create_run(project=project, name=name, config=config or {}, tags=tags or [])
+    payload = client.create_run(
+        project=project,
+        name=name,
+        config=config or {},
+        tags=tags or [],
+        group=group,
+    )
     run = Run(
         client=client,
         run_id=str(payload["run_id"]),

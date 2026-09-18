@@ -93,15 +93,19 @@ class CursusClient:
         name: str | None = None,
         config: dict[str, Any] | None = None,
         tags: list[str] | None = None,
+        group: str | None = None,
     ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "project": project,
+            "name": name,
+            "config": config or {},
+            "tags": tags or [],
+        }
+        if group:
+            body["group"] = group
         resp = self._session.post(
             f"{self.base_url}/api/v1/runs",
-            json={
-                "project": project,
-                "name": name,
-                "config": config or {},
-                "tags": tags or [],
-            },
+            json=body,
             timeout=self.timeout,
         )
         resp.raise_for_status()

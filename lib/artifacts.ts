@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
-import { slugify } from "@/lib/runs";
+import { runVisibilityFilter, type GroupAuth } from "@/lib/groups";
+import { slugify } from "@/lib/slug";
 import type { ArtifactUploadFields } from "@/lib/validation";
 
 // Artifacts v1: run-attached versioned files. Deliberately NOT a registry:
@@ -44,7 +45,7 @@ export interface CreatedVersion {
 }
 
 export async function createArtifactVersion(
-  auth: { orgId: string; userId: string },
+  auth: GroupAuth & { userId: string },
   fields: ArtifactUploadFields,
   uploads: UploadFile[],
 ): Promise<CreatedVersion> {
@@ -59,8 +60,13 @@ export async function createArtifactVersion(
   let projectId: string | null = null;
   let runId: string | null = null;
   if (fields.run_id) {
+    // Attaching to a run you cannot see is a 404 (same oracle rule).
     const run = await db.run.findFirst({
-      where: { id: fields.run_id, project: { orgId: auth.orgId } },
+      where: {
+        id: fields.run_id,
+        project: { orgId: auth.orgId },
+        ...runVisibilityFilter(auth),
+      },
       select: { id: true, projectId: true },
     });
     if (!run) throw new ApiError(404, "run not found");
@@ -392,11 +398,15 @@ export interface ProducedArtifact {
 
 /** Versions produced by one run (run detail Overview section). */
 export async function getRunArtifacts(
-  auth: { orgId: string },
+  auth: GroupAuth,
   runId: string,
 ): Promise<ProducedArtifact[]> {
   const run = await db.run.findFirst({
-    where: { id: runId, project: { orgId: auth.orgId } },
+    where: {
+      id: runId,
+      project: { orgId: auth.orgId },
+      ...runVisibilityFilter(auth),
+    },
     select: { id: true },
   });
   if (!run) throw new ApiError(404, "run not found");

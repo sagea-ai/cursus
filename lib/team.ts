@@ -8,7 +8,7 @@ import {
   lockedHash,
   verifyPassword,
 } from "@/lib/password";
-import { slugify } from "@/lib/runs";
+import { slugify } from "@/lib/slug";
 import {
   signInviteToken,
   verifyInviteToken,

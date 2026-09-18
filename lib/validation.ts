@@ -20,6 +20,9 @@ export const createRunSchema = z.object({
   name: z.string().min(1).max(128).optional(),
   config: z.record(z.string(), z.unknown()).optional().default({}),
   tags: z.array(z.string().min(1).max(64)).max(32).optional().default([]),
+  // Optional group slug: the run is then visible only to group members
+  // (and super admins). Caller must belong to the group.
+  group: z.string().min(1).max(128).optional(),
 });
 
 export type CreateRunInput = z.infer<typeof createRunSchema>;
@@ -49,10 +52,16 @@ export const updateRunSchema = z
     name: z.string().min(1).max(128).optional(),
     tags: z.array(z.string().min(1).max(64)).max(32).optional(),
     notes: z.string().max(2000).optional(),
+    // Move between groups (or null for org-wide). Membership in the target
+    // group (or admin) is required, checked server-side.
+    group: z.string().min(1).max(128).nullable().optional(),
   })
   .refine(
     (b) =>
-      b.name !== undefined || b.tags !== undefined || b.notes !== undefined,
+      b.name !== undefined ||
+      b.tags !== undefined ||
+      b.notes !== undefined ||
+      b.group !== undefined,
     { message: "nothing to update" },
   );
 
@@ -67,6 +76,37 @@ export type RunListSort = z.infer<typeof runListSortSchema>;
 
 export const renameProjectSchema = z.object({
   name: z.string().min(1).max(128),
+});
+
+export const groupSlugSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine(
+    (s) =>
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s.toLowerCase().replace(/_/g, "-")),
+    {
+      message: "must be a URL-safe slug",
+    },
+  );
+
+export const createGroupSchema = z.object({
+  name: z.string().min(1).max(128),
+  slug: groupSlugSchema.optional(),
+  description: z.string().max(500).optional().default(""),
+});
+
+export const updateGroupSchema = z
+  .object({
+    name: z.string().min(1).max(128).optional(),
+    description: z.string().max(500).optional(),
+  })
+  .refine((b) => b.name !== undefined || b.description !== undefined, {
+    message: "nothing to update",
+  });
+
+export const addGroupMemberSchema = z.object({
+  email: z.string().email().max(320),
 });
 
 export const artifactNameSchema = z

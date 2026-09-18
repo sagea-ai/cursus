@@ -3,6 +3,8 @@
 [![CI](https://github.com/sagea/cursus/actions/workflows/ci.yml/badge.svg)](https://github.com/sagea/cursus/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 
+![Cursus banner](./assets/banner.png)
+
 A minimal, self-hostable experiment tracker, a barebones Weights & Biases.
 Create a run, log scalars/config over time, view charts, compare runs, manage
 your team. Nothing else. See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

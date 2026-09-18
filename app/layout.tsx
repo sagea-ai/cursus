@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cursus — experiment tracking",
+  title: "Cursus / Experiment tracking",
   description: "Minimal, self-hostable experiment tracking for ML teams.",
 };
 

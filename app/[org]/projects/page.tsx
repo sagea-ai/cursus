@@ -74,7 +74,7 @@ cursus.finish()`}
                 <CardTitle className="flex items-center gap-2 text-base">
                   <FiBox className="size-4 shrink-0 text-accent-soft" />
                   <Link
-                    href={`/${org.slug}/${p.slug}/runs`}
+                    href={`/${org.slug}/${p.slug}`}
                     className="min-w-0 flex-1 truncate hover:underline"
                   >
                     {p.name}

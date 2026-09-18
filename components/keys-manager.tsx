@@ -46,6 +46,7 @@ export function KeysManager({
   const [open, setOpen] = React.useState(false);
   const [label, setLabel] = React.useState("");
   const [plaintext, setPlaintext] = React.useState<string | null>(null);
+  const [revealedFor, setRevealedFor] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -73,6 +74,7 @@ export function KeysManager({
     setOpen(false);
     setLabel("");
     setPlaintext(null);
+    setRevealedFor(null);
     setError(null);
     setCopied(false);
     router.refresh();
@@ -96,6 +98,27 @@ export function KeysManager({
     router.refresh();
   }
 
+  async function rotate(id: string, keyLabel: string, owner?: string) {
+    const whose = owner ? `${owner}'s key "${keyLabel}"` : `key "${keyLabel}"`;
+    if (
+      !confirm(
+        `Rotate ${whose}? A replacement key is issued and shown once; the old secret stops working immediately. Update CURSUS_API_KEY wherever it is used.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/v1/keys/${id}/rotate`, { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) {
+      alert(body.error ?? "Could not rotate key");
+      return;
+    }
+    // Reveal the replacement exactly once, reusing the create dialog.
+    setRevealedFor(`Rotated replacement for "${keyLabel}"`);
+    setPlaintext(body.plaintext);
+    setOpen(true);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -112,9 +135,12 @@ export function KeysManager({
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create API key</DialogTitle>
+              <DialogTitle>
+                {revealedFor ? "Key rotated" : "Create API key"}
+              </DialogTitle>
               <DialogDescription>
-                Name it after the machine or job that will use it.
+                {revealedFor ??
+                  "Name it after the machine or job that will use it."}
               </DialogDescription>
             </DialogHeader>
             {plaintext ? (
@@ -172,7 +198,7 @@ export function KeysManager({
             <TableHead>Created</TableHead>
             <TableHead>Last used</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="w-24" />
+            <TableHead className="w-40" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -201,13 +227,22 @@ export function KeysManager({
               </TableCell>
               <TableCell>
                 {!k.revokedAt && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void revoke(k.id, k.label, k.ownerEmail)}
-                  >
-                    Revoke
-                  </Button>
+                  <span className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void rotate(k.id, k.label, k.ownerEmail)}
+                    >
+                      Rotate
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void revoke(k.id, k.label, k.ownerEmail)}
+                    >
+                      Revoke
+                    </Button>
+                  </span>
                 )}
               </TableCell>
             </TableRow>

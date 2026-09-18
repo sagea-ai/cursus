@@ -96,7 +96,7 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page.getByRole("link", { name: /e2e-proj/ })).toBeVisible();
 
-  // 3a. Project overview: stats, API docs, and rename.
+  // 3a. Project overview: stats, API docs, rename, and API-keys tab.
   await page.goto(`/${orgSlug}/e2e-proj`);
   await expect(page.getByText("Total runs")).toBeVisible();
   await expect(page.getByText("Export metrics to CSV")).toBeVisible();
@@ -106,6 +106,8 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(
     page.getByRole("heading", { name: "E2E Renamed" }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "API keys" }).click();
+  await expect(page.getByRole("button", { name: "Create Key" })).toBeVisible();
 
   // 4. Create an API key via UI (reveal-once) and log runs SDK-style.
   await page.goto(`/${orgSlug}/settings/keys`);
@@ -113,9 +115,28 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByLabel("Label").fill("e2e-box");
   await page.getByRole("button", { name: "Create key" }).click();
   await expect(page.getByText("you won't see this again")).toBeVisible();
+  const firstPlaintext =
+    (await page.locator("code").last().textContent())?.trim() ?? "";
+  expect(firstPlaintext).toMatch(/^cursus_/);
+  await page.keyboard.press("Escape");
+
+  // 4a. Rotate (reshuffle) the key in the UI: replacement revealed once,
+  // old secret dies immediately. (confirm() dialogs auto-dismiss in
+  // Playwright, so accept this one explicitly.)
+  page.on("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "Rotate" }).click();
+  await expect(page.getByText("Key rotated")).toBeVisible();
   const plaintext =
     (await page.locator("code").last().textContent())?.trim() ?? "";
   expect(plaintext).toMatch(/^cursus_/);
+  expect(plaintext).not.toBe(firstPlaintext);
+  await page.keyboard.press("Escape");
+
+  const deadCheck = await request.post("/api/v1/runs", {
+    headers: { Authorization: `Bearer ${firstPlaintext}` },
+    data: { project: "e2e-proj", name: "should-fail" },
+  });
+  expect(deadCheck.status()).toBe(401);
 
   const headers = { Authorization: `Bearer ${plaintext}` };
   const runIds: string[] = [];
@@ -146,6 +167,28 @@ test("critical journey: bootstrap to restricted member", async ({
     });
     expect(fin.ok()).toBeTruthy();
   }
+
+  // 4b. Attach an artifact to the first run, browse it in the UI.
+  const up = await request.post("/api/v1/artifacts", {
+    headers,
+    multipart: {
+      name: "e2e-weights",
+      type: "model",
+      description: "journey artifact",
+      run_id: runIds[0]!,
+      files: {
+        name: "best.pt",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from("e2e-bytes"),
+      },
+    },
+  });
+  expect(up.status()).toBe(201);
+  await page.goto(`/${orgSlug}/e2e-proj/artifacts`);
+  await expect(page.getByRole("link", { name: /e2e-weights/ })).toBeVisible();
+  await page.getByRole("link", { name: /e2e-weights/ }).click();
+  await expect(page.getByText("best.pt")).toBeVisible();
+  await expect(page.getByText("journey artifact")).toBeVisible();
 
   // 5. Run list shows both; sort control reorders server-side.
   await page.goto(`/${orgSlug}/e2e-proj/runs`);

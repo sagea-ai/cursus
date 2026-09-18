@@ -5,8 +5,10 @@ import { FiCheck, FiCopy } from "react-icons/fi";
 
 import { Button } from "@/components/ui/button";
 
-// Run Overview tab: identity, lifecycle, and the free-text notes field
-// (the table's NOTES column edits here).
+import Link from "next/link";
+
+// Run Overview tab: identity, lifecycle, produced artifacts, and the
+// free-text notes field (the table's NOTES column edits here).
 export function RunOverview({
   runId,
   runPath,
@@ -15,6 +17,8 @@ export function RunOverview({
   startedAt,
   finishedAt,
   initialNotes,
+  artifactsBasePath,
+  producedArtifacts,
 }: {
   runId: string;
   runPath: string;
@@ -23,6 +27,8 @@ export function RunOverview({
   startedAt: string;
   finishedAt: string | null;
   initialNotes: string;
+  artifactsBasePath: string;
+  producedArtifacts: { artifactName: string; version: number }[];
 }) {
   const [notes, setNotes] = React.useState(initialNotes);
   const [saved, setSaved] = React.useState(true);
@@ -81,6 +87,26 @@ export function RunOverview({
         {finishedAt
           ? new Date(finishedAt).toLocaleString()
           : "— (still running)"}
+      </span>,
+    ],
+    [
+      "Artifacts",
+      <span key="art">
+        {producedArtifacts.length === 0 ? (
+          "—"
+        ) : (
+          <span className="flex flex-wrap gap-1.5">
+            {producedArtifacts.map((a) => (
+              <Link
+                key={`${a.artifactName}-v${a.version}`}
+                href={`${artifactsBasePath}/${encodeURIComponent(a.artifactName)}?v=${a.version}`}
+                className="font-mono text-xs text-accent-pale hover:underline"
+              >
+                {a.artifactName}:v{a.version}
+              </Link>
+            ))}
+          </span>
+        )}
       </span>,
     ],
   ];

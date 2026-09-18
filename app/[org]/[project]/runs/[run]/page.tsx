@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isNotFoundError } from "@/lib/http";
 import { requirePageSession } from "@/lib/page-auth";
+import { getRunArtifacts } from "@/lib/artifacts";
 import { getRun } from "@/lib/runs";
 
 export default async function RunDetailPage({
@@ -26,6 +27,7 @@ export default async function RunDetailPage({
     if (isNotFoundError(e)) notFound();
     throw e;
   }
+  const produced = await getRunArtifacts(session, detail.id);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-8">
@@ -83,6 +85,11 @@ export default async function RunDetailPage({
               detail.finishedAt ? detail.finishedAt.toISOString() : null
             }
             initialNotes={detail.notes}
+            artifactsBasePath={`/${org.slug}/${projectSlug}/artifacts`}
+            producedArtifacts={produced.map((a) => ({
+              artifactName: a.artifactName,
+              version: a.version,
+            }))}
           />
         </TabsContent>
         <TabsContent value="config">

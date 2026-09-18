@@ -17,6 +17,7 @@ export function ProjectTabs({
   const tabs = [
     { label: "Overview", href: `/${orgSlug}/${projectSlug}` },
     { label: "Runs", href: `/${orgSlug}/${projectSlug}/runs` },
+    { label: "Artifacts", href: `/${orgSlug}/${projectSlug}/artifacts` },
   ];
   return (
     <nav className="flex gap-1 border-b border-border" aria-label="Project">

@@ -46,11 +46,21 @@ model Org {
   apiKeys   ApiKey[]
 }
 
+// Deployment-wide singleton flags (one row, id = "global"). Owns the
+// onboarding kill-switch (see docs/prd-onboarding.md) — checked before any
+// org exists, so it cannot live on Org.
+model GlobalSettings {
+  id                 String  @id
+  onboardingDisabled Boolean @default(false)
+}
+
 model User {
   id           String   @id @default(cuid())
   orgId        String
   org          Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   email        String   @unique
+  // Display name from onboarding; "" for rows predating the field.
+  name         String   @default("")
   passwordHash String
   role         Role     @default(MEMBER)
   createdAt    DateTime @default(now())

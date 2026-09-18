@@ -42,13 +42,28 @@ export async function createKey(
 ): Promise<{ key: PublicKey; plaintext: string }> {
   requireRole(session, "MEMBER");
   const { plaintext, keyHash } = generateApiKey();
-  const row = await db.apiKey.create({
-    data: {
-      orgId: session.orgId,
-      userId: session.userId,
-      keyHash,
-      label,
-    },
+  // Key row + audit event commit atomically: a key must never exist without
+  // its creation record (or vice versa).
+  const row = await db.$transaction(async (tx) => {
+    const created = await tx.apiKey.create({
+      data: {
+        orgId: session.orgId,
+        userId: session.userId,
+        keyHash,
+        label,
+      },
+    });
+    await tx.auditEvent.create({
+      data: {
+        orgId: session.orgId,
+        actorId: session.userId,
+        action: "api_key.created",
+        targetType: "api_key",
+        targetId: created.id,
+        metadata: { label },
+      },
+    });
+    return created;
   });
   // Plaintext is returned exactly once — never stored, never re-readable.
   return {
@@ -78,10 +93,22 @@ export async function revokeKey(
     // unguessable CUIDs — no enumeration oracle, clearer client error.
     throw new ApiError(403, "cannot revoke another user's key");
   }
-  await db.apiKey.update({
-    where: { id: row.id },
-    data: { revokedAt: new Date() },
-  });
+  await db.$transaction([
+    db.apiKey.update({
+      where: { id: row.id },
+      data: { revokedAt: new Date() },
+    }),
+    db.auditEvent.create({
+      data: {
+        orgId: session.orgId,
+        actorId: session.userId,
+        action: "api_key.revoked",
+        targetType: "api_key",
+        targetId: row.id,
+        metadata: {},
+      },
+    }),
+  ]);
   return { id: row.id };
 }
 
@@ -106,17 +133,32 @@ export async function rotateKey(
   if (row.revokedAt) throw new ApiError(409, "key is already revoked");
   const { plaintext, keyHash } = generateApiKey();
   const now = new Date();
-  const created = await db.apiKey.create({
-    data: {
-      orgId: session.orgId,
-      userId: row.userId,
-      keyHash,
-      label: row.label,
-    },
-  });
-  await db.apiKey.update({
-    where: { id: row.id },
-    data: { revokedAt: now },
+  // Replacement + revocation + audit trail commit atomically: rotating must
+  // never mint a key without killing the old one (or vice versa).
+  const created = await db.$transaction(async (tx) => {
+    const replacement = await tx.apiKey.create({
+      data: {
+        orgId: session.orgId,
+        userId: row.userId,
+        keyHash,
+        label: row.label,
+      },
+    });
+    await tx.apiKey.update({
+      where: { id: row.id },
+      data: { revokedAt: now },
+    });
+    await tx.auditEvent.create({
+      data: {
+        orgId: session.orgId,
+        actorId: session.userId,
+        action: "api_key.rotated",
+        targetType: "api_key",
+        targetId: row.id,
+        metadata: { label: row.label, replacementId: replacement.id },
+      },
+    });
+    return replacement;
   });
   return {
     key: {

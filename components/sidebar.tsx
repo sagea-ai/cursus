@@ -136,8 +136,10 @@ export function Sidebar({
             )}
             {visible.map((item) => {
               const href = `/${orgSlug}/${item.href}`;
-              const active =
-                pathname === href || pathname.startsWith(`${href}/`);
+              // Exact match only: every sidebar destination is a leaf page,
+              // so prefix matching would light up parents too (e.g. Settings
+              // under settings/keys — the same bug project tabs once had).
+              const active = pathname === href;
               return (
                 <Link
                   key={item.href}

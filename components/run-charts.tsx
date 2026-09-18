@@ -3,7 +3,11 @@
 import * as React from "react";
 import { FiMaximize2, FiX } from "react-icons/fi";
 
-import { MetricChart, CHART_PALETTE, type ChartDatum } from "@/components/metric-chart";
+import {
+  MetricChart,
+  CHART_PALETTE,
+  type ChartDatum,
+} from "@/components/metric-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 

@@ -19,7 +19,12 @@ import { cn } from "@/lib/utils";
 
 const SECTIONS: {
   label: string;
-  items: { href: string; label: string; icon: typeof FiFolder; admin?: boolean }[];
+  items: {
+    href: string;
+    label: string;
+    icon: typeof FiFolder;
+    admin?: boolean;
+  }[];
 }[] = [
   {
     label: "Experiments",

@@ -59,8 +59,8 @@ export default async function InvitePage({
           {preview && <AcceptForm token={decodeURIComponent(token)} />}
         </div>
         <p className="mt-4 text-center text-xs leading-relaxed text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]">
-          Invites are single-use and expire after 7 days. Ask a super admin for
-          a fresh link if this one stops working.
+          Invites are single-use and expire after 1 hour. Ask a super admin
+          for a fresh link if this one stops working.
         </p>
       </div>
     </main>

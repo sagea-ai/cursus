@@ -59,6 +59,16 @@ describe("invite tokens", () => {
     );
   });
 
+  it("expires after 1 hour", async () => {
+    const token = await signInviteToken({
+      userId: "u9",
+      orgId: "o1",
+      email: "m@example.com",
+    });
+    const payload = jose.decodeJwt(token);
+    expect(payload.exp! - payload.iat!).toBe(60 * 60);
+  });
+
   it("rejects a session token used as an invite", async () => {
     expect(await verifyInviteToken(await signSession(session))).toBeNull();
   });

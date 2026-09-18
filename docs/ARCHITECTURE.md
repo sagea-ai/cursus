@@ -58,7 +58,7 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
   pinned by an explicit test).
 - First boot: `POST /api/v1/auth/bootstrap` provisions the org + first super
   admin, allowed only while the users table is empty (permanently 403 after).
-  No public signup; members join via invite links (stateless JWT, 7-day
+  No public signup; members join via invite links (stateless JWT, 1-hour
   expiry, single-use enforced by the invite-pending password sentinel).
 - Deactivation keeps the user row (run attribution survives) but locks the
   password hash (`!locked-…`) and revokes all keys. The last super admin can

@@ -7,13 +7,13 @@ import type { Session } from "@/lib/auth";
 // - Dashboard sessions: HS256 JWT in an httpOnly cookie. No server-side
 //   session table in v1 (one less thing to operate; revocation on password
 //   change is a documented v2 gap, not an oversight).
-// - Invite tokens: HS256 JWT with typ:"invite", 7-day expiry. Single-use is
+// - Invite tokens: HS256 JWT with typ:"invite", 1-hour expiry. Single-use is
 //   enforced by checking the user's passwordHash is still the invite-pending
 //   sentinel at accept time — no token table needed.
 
 export const SESSION_COOKIE = "cursus_session";
 const SESSION_MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
-const INVITE_MAX_AGE_S = 60 * 60 * 24 * 7; // 7 days
+const INVITE_MAX_AGE_S = 60 * 60; // 1 hour
 
 function secret(): Uint8Array {
   const raw = process.env["SESSION_SECRET"];

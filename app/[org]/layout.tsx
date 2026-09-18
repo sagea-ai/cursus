@@ -1,5 +1,4 @@
 import { Sidebar } from "@/components/sidebar";
-import { db } from "@/lib/db";
 import { requirePageSession } from "@/lib/page-auth";
 
 export default async function OrgLayout({
@@ -10,11 +9,7 @@ export default async function OrgLayout({
   params: Promise<{ org: string }>;
 }) {
   const { org: orgSlug } = await params;
-  const { session, org } = await requirePageSession(orgSlug);
-  const me = await db.user.findUnique({
-    where: { id: session.userId },
-    select: { name: true },
-  });
+  const { session, org, displayName } = await requirePageSession(orgSlug);
 
   return (
     <div className="flex min-h-screen">
@@ -22,7 +17,7 @@ export default async function OrgLayout({
         orgSlug={org.slug}
         orgName={org.name}
         email={session.email}
-        displayName={me?.name || session.email}
+        displayName={displayName}
         role={session.role}
       />
       <div className="min-w-0 flex-1">{children}</div>

@@ -44,8 +44,9 @@ export async function listProjects(
 ): Promise<ProjectSummary[]> {
   requireAuth(session);
   const orgId = await orgIdFor(session, orgSlug);
-  // One query + one batched include (not N+1): only the fields the cards
-  // need. Counts/cards reflect VISIBLE runs only (group scoping applies).
+  // Bounded to TWO queries no matter how many runs exist: the project rows,
+  // then one grouped aggregation. The old shape (include every run row)
+  // grew linearly with training volume — exactly the table this PRD scales.
   const projects = await db.project.findMany({
     where: { orgId, ...projectVisibilityFilter(session) },
     orderBy: { createdAt: "desc" },
@@ -55,31 +56,44 @@ export async function listProjects(
       name: true,
       createdAt: true,
       group: { select: { slug: true, name: true } },
-      runs: {
-        where: runVisibilityFilter(session),
-        select: { status: true, startedAt: true },
-      },
     },
   });
+  if (projects.length === 0) return [];
+  const stats = await db.run.groupBy({
+    by: ["projectId", "status"],
+    where: { projectId: { in: projects.map((p) => p.id) } },
+    _count: { _all: true },
+    _max: { startedAt: true },
+  });
+  const byProject = new Map<
+    string,
+    { counts: Record<string, number>; lastRunAt: Date | null }
+  >();
+  for (const row of stats) {
+    let entry = byProject.get(row.projectId);
+    if (!entry) {
+      entry = { counts: {}, lastRunAt: null };
+      byProject.set(row.projectId, entry);
+    }
+    entry.counts[row.status] = row._count._all;
+    const started = row._max.startedAt;
+    if (started && (!entry.lastRunAt || started > entry.lastRunAt)) {
+      entry.lastRunAt = started;
+    }
+  }
+  const runCountOf = (id: string) =>
+    Object.values(byProject.get(id)?.counts ?? {}).reduce((a, b) => a + b, 0);
   return projects
-    .map((p) => {
-      const statusCounts: Record<string, number> = {};
-      let lastRunAt: Date | null = null;
-      for (const r of p.runs) {
-        statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
-        if (!lastRunAt || r.startedAt > lastRunAt) lastRunAt = r.startedAt;
-      }
-      return {
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        group: p.group,
-        runCount: p.runs.length,
-        lastRunAt,
-        statusCounts,
-        createdAt: p.createdAt,
-      };
-    })
+    .map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      group: p.group,
+      runCount: runCountOf(p.id),
+      lastRunAt: byProject.get(p.id)?.lastRunAt ?? null,
+      statusCounts: byProject.get(p.id)?.counts ?? {},
+      createdAt: p.createdAt,
+    }))
     .sort(
       (a, b) => (b.lastRunAt?.getTime() ?? 0) - (a.lastRunAt?.getTime() ?? 0),
     );
@@ -186,40 +200,60 @@ export async function getProjectOverview(
       name: true,
       createdAt: true,
       group: { select: { slug: true, name: true } },
-      // Stats aggregate VISIBLE runs only — a member must not infer hidden
-      // runs from totals (counts, compute, contributors all scoped).
-      runs: {
-        where: runVisibilityFilter(session),
-        select: {
-          status: true,
-          startedAt: true,
-          finishedAt: true,
-          createdBy: { select: { email: true, name: true } },
-        },
-      },
     },
   });
+  // Unreachable unless the row vanishes between the two queries above.
   if (!project) throw new ApiError(404, "project not found");
-  const now = Date.now();
-  const byUser = new Map<string, ProjectContributor>();
+  // Aggregates, not row loads: status mix + recency in one grouped query,
+  // contributors in another, and only narrow (startedAt, finishedAt) pairs
+  // for the compute sum. Cost is O(distinct users), never O(runs × columns).
+  // (If compute ever needs to avoid even the narrow scan, fold it into a
+  // single SUM(COALESCE(finishedAt, NOW()) - startedAt) raw query.)
+  const where = { projectId, ...runVisibilityFilter(session) };
+  const [statusRows, recency, contributorRows, spans] = await Promise.all([
+    db.run.groupBy({
+      by: ["status"],
+      where,
+      _count: { _all: true },
+    }),
+    db.run.aggregate({ where, _max: { startedAt: true } }),
+    db.run.groupBy({
+      by: ["createdById"],
+      where,
+      _count: { _all: true },
+    }),
+    db.run.findMany({
+      where,
+      select: { startedAt: true, finishedAt: true },
+    }),
+  ]);
   const statusCounts: Record<string, number> = {};
-  let lastActiveAt: Date | null = project.createdAt;
+  let totalRuns = 0;
+  for (const row of statusRows) {
+    statusCounts[row.status] = row._count._all;
+    totalRuns += row._count._all;
+  }
+  const contributors: ProjectContributor[] =
+    contributorRows.length === 0
+      ? []
+      : (
+          await db.user.findMany({
+            where: { id: { in: contributorRows.map((r) => r.createdById) } },
+            select: { id: true, email: true, name: true },
+          })
+        ).map((u) => ({
+          email: u.email,
+          name: u.name,
+          runs:
+            contributorRows.find((r) => r.createdById === u.id)?._count._all ??
+            0,
+        }));
+  contributors.sort((a, b) => b.runs - a.runs);
+  const now = Date.now();
   let totalComputeMs = 0;
-  for (const r of project.runs) {
-    statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
-    if (!lastActiveAt || r.startedAt > lastActiveAt) lastActiveAt = r.startedAt;
+  for (const r of spans) {
     totalComputeMs +=
       (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
-    const key = r.createdBy.email;
-    const entry = byUser.get(key) ?? {
-      email: key,
-      name: r.createdBy.name,
-      runs: 0,
-    };
-    entry.runs += 1;
-    // Name can change per row only if edited; last write wins, fine for v1.
-    entry.name = r.createdBy.name;
-    byUser.set(key, entry);
   }
   return {
     project: {
@@ -230,10 +264,10 @@ export async function getProjectOverview(
       group: project.group,
     },
     visibility: "Team",
-    lastActiveAt,
-    totalRuns: project.runs.length,
+    lastActiveAt: recency._max.startedAt,
+    totalRuns,
     totalComputeMs,
-    contributors: [...byUser.values()].sort((a, b) => b.runs - a.runs),
+    contributors,
     statusCounts,
   };
 }

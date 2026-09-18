@@ -114,6 +114,28 @@ export const addGroupMemberSchema = z.object({
   email: z.string().email().max(320),
 });
 
+export const updateProfileSchema = z
+  .object({
+    // NOTE: no email/name fields on purpose — both are immutable. Zod
+    // strips unknown keys, so sending them changes nothing (tested).
+    bio: z.string().max(500).optional(),
+    location: z.string().max(128).optional(),
+    website: z.string().max(256).optional(),
+    twitter: z.string().max(64).optional(),
+    github: z.string().max(64).optional(),
+  })
+  .refine(
+    (b) =>
+      b.bio !== undefined ||
+      b.location !== undefined ||
+      b.website !== undefined ||
+      b.twitter !== undefined ||
+      b.github !== undefined,
+    { message: "nothing to update" },
+  );
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
 export const artifactNameSchema = z
   .string()
   .min(1)

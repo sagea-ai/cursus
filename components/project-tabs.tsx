@@ -15,14 +15,22 @@ export function ProjectTabs({
 }) {
   const pathname = usePathname();
   const tabs = [
-    { label: "Overview", href: `/${orgSlug}/${projectSlug}` },
-    { label: "Runs", href: `/${orgSlug}/${projectSlug}/runs` },
-    { label: "Artifacts", href: `/${orgSlug}/${projectSlug}/artifacts` },
+    { label: "Overview", href: `/${orgSlug}/${projectSlug}`, exact: true },
+    { label: "Runs", href: `/${orgSlug}/${projectSlug}/runs`, exact: false },
+    {
+      label: "Artifacts",
+      href: `/${orgSlug}/${projectSlug}/artifacts`,
+      exact: false,
+    },
   ];
   return (
     <nav className="flex gap-1 border-b border-border" aria-label="Project">
       {tabs.map((t) => {
-        const active = pathname === t.href || pathname.startsWith(`${t.href}/`);
+        // Overview matches exactly: it prefixes every project URL, so
+        // prefix-matching would leave it highlighted on Runs/Artifacts too.
+        const active = t.exact
+          ? pathname === t.href
+          : pathname === t.href || pathname.startsWith(`${t.href}/`);
         return (
           <Link
             key={t.href}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { POST as logPOST } from "@/app/api/v1/runs/[runId]/log/route";
 import { GET as listGET, POST as createPOST } from "@/app/api/v1/keys/route";
 import { DELETE as revokeDELETE } from "@/app/api/v1/keys/[keyId]/route";
+import { GET as historyGET } from "@/app/api/v1/keys/[keyId]/history/route";
 import { POST as rotatePOST } from "@/app/api/v1/keys/[keyId]/rotate/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
 import {
@@ -194,8 +195,7 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
     }
   });
 
-  it("member cannot rotate another member's key", async () => {
-    const org = await createTestOrg("keys");
+  it("member cannot rotate another member's key", async () => {    const org = await createTestOrg("keys");
     const org2 = await createTestOrg("keysB");
     try {
       const created = await createPOST(
@@ -215,6 +215,86 @@ describe.skipIf(!apiTestsEnabled)("keys routes", () => {
       expect(cross.status).toBe(404);
     } finally {
       await org2.cleanup();
+      await org.cleanup();
+    }
+  });
+
+  it("key history shows the key's trail, including birth-by-rotation", async () => {
+    const org = await createTestOrg("keys");
+    try {
+      const created = await createPOST(
+        await authedRequest("/api/v1/keys", org.member, {
+          method: "POST",
+          body: { label: "traced" },
+        }),
+      );
+      const keyId = ((await created.json()).key as { id: string }).id;
+      const rotated = await rotatePOST(
+        await authedRequest(`/api/v1/keys/${keyId}/rotate`, org.member, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ keyId }) },
+      );
+      const replacementId = (
+        (await rotated.json()).key as { id: string }
+      ).id;
+
+      const oldPage = (await (
+        await historyGET(
+          await authedRequest(`/api/v1/keys/${keyId}/history`, org.member),
+          { params: Promise.resolve({ keyId }) },
+        )
+      ).json()) as {
+        label: string;
+        revokedAt: string | null;
+        events: { action: string }[];
+      };
+      expect(oldPage.revokedAt).not.toBeNull();
+      expect(oldPage.events.map((e) => e.action).sort()).toEqual([
+        "api_key.created",
+        "api_key.rotated",
+      ]);
+
+      const newPage = (await (
+        await historyGET(
+          await authedRequest(
+            `/api/v1/keys/${replacementId}/history`,
+            org.member,
+          ),
+          { params: Promise.resolve({ keyId: replacementId }) },
+        )
+      ).json()) as { events: { action: string }[] };
+      expect(newPage.events.map((e) => e.action)).toEqual([
+        "api_key.rotated",
+      ]);
+
+      // Another member's key history → 403; anon → 401; missing → 404.
+      const other = await createTestOrg("keysB");
+      try {
+        const theirs = await historyGET(
+          await authedRequest(
+            `/api/v1/keys/${keyId}/history`,
+            other.member,
+          ),
+          { params: Promise.resolve({ keyId }) },
+        );
+        expect(theirs.status).toBe(404);
+
+        const anon = await historyGET(
+          apiRequest(`/api/v1/keys/${keyId}/history`),
+          { params: Promise.resolve({ keyId }) },
+        );
+        expect(anon.status).toBe(401);
+
+        const missing = await historyGET(
+          await authedRequest("/api/v1/keys/nope/history", org.admin),
+          { params: Promise.resolve({ keyId: "nope" }) },
+        );
+        expect(missing.status).toBe(404);
+      } finally {
+        await other.cleanup();
+      }
+    } finally {
       await org.cleanup();
     }
   });

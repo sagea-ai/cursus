@@ -116,8 +116,7 @@ export async function revokeKey(
  * Rotate ("reshuffle") a key: issue a replacement and revoke the old one
  * atomically. Same ownership rule as revoke. The new plaintext is returned
  * exactly once, like creation.
- */
-export async function rotateKey(
+ */export async function rotateKey(
   session: Session | null,
   keyId: string,
 ): Promise<{ key: PublicKey; plaintext: string }> {
@@ -169,5 +168,65 @@ export async function rotateKey(
       revokedAt: created.revokedAt,
     },
     plaintext,
+  };
+}
+
+export interface KeyEvent {
+  id: string;
+  action: string;
+  createdAt: Date;
+  actor: { email: string; name: string };
+  metadata: unknown;
+}
+
+export interface KeyDetail extends PublicKey {
+  events: KeyEvent[];
+}
+
+/**
+ * One key plus its audit trail: events targeting it, plus the rotation
+ * event that birthed it (referenced via metadata, so a replacement's page
+ * shows where it came from). Same ownership rule as revoke — members see
+ * only their own keys' history.
+ */
+export async function getKeyDetail(
+  session: Session | null,
+  keyId: string,
+): Promise<KeyDetail> {
+  requireRole(session, "MEMBER");
+  const row = await db.apiKey.findFirst({
+    where: { id: keyId, orgId: session.orgId },
+    include: { user: { select: { email: true } } },
+  });
+  if (!row) throw new ApiError(404, "key not found");
+  if (row.userId !== session.userId && session.role !== "SUPER_ADMIN") {
+    throw new ApiError(403, "cannot view another user's key");
+  }
+  const events = await db.auditEvent.findMany({
+    where: {
+      orgId: session.orgId,
+      OR: [
+        { targetId: row.id },
+        { metadata: { path: ["replacementId"], equals: row.id } },
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 100,
+    select: {
+      id: true,
+      action: true,
+      createdAt: true,
+      metadata: true,
+      actor: { select: { email: true, name: true } },
+    },
+  });
+  return {
+    id: row.id,
+    label: row.label,
+    ownerEmail: row.user.email,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt,
+    revokedAt: row.revokedAt,
+    events,
   };
 }

@@ -34,8 +34,9 @@ def init(
     ``~/.cursus/config``. Fails loudly on version mismatch or missing key —
     init is the one place raising is acceptable; log/finish never raise.
 
-    Pass ``group="slug"`` to scope the run to a group (you must belong to
-    it); omit it for an org-wide run visible to every member.
+    Pass ``group="slug"`` to log into a project inside that group (the
+    project is resolved or created there; you must belong to the group).
+    Omit it for org-wide projects visible to every member.
 
     Example:
         import sagea_cursus as cursus

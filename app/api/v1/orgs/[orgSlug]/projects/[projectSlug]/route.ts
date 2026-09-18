@@ -5,9 +5,9 @@ import { toErrorResponse } from "@/lib/http";
 import {
   deleteProject,
   getProjectOverview,
-  renameProject,
+  updateProject,
 } from "@/lib/projects";
-import { renameProjectSchema } from "@/lib/validation";
+import { updateProjectSchema } from "@/lib/validation";
 
 export async function GET(
   request: NextRequest,
@@ -29,9 +29,9 @@ export async function PATCH(
   try {
     const { orgSlug, projectSlug } = await ctx.params;
     const session = await getLiveSession(request);
-    const body = renameProjectSchema.parse(await request.json());
+    const body = updateProjectSchema.parse(await request.json());
     return Response.json({
-      project: await renameProject(session, orgSlug, projectSlug, body.name),
+      project: await updateProject(session, orgSlug, projectSlug, body),
     });
   } catch (e) {
     return toErrorResponse(e);

@@ -3,10 +3,10 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import { slugify } from "@/lib/slug";
 
-// Groups: named org subsets with member-scoped run visibility. This file
-// owns the ONE visibility rule the whole app shares (PRD non-goal amended
-// deliberately: per-group scoping, nothing finer — no custom roles, no
-// per-project ACLs, admins bypass everything).
+// Groups: named org subsets that own projects. Runs inherit their project's
+// visibility — there is no per-run scope. One rule shared by the whole app
+// (amended non-goal, kept minimal: member-or-open reads, no custom roles,
+// no per-project ACLs, admins bypass everything).
 
 export interface GroupAuth {
   orgId: string;
@@ -16,11 +16,23 @@ export interface GroupAuth {
 
 /**
  * Prisma Run where-clause fragment: which runs may this caller see?
- * - SUPER_ADMIN: everything.
- * - MEMBER: org-wide runs (groupId NULL) + runs in their groups.
- * Missing AND hidden rows are indistinguishable (both 404) — no oracle.
+ * Visibility is inherited from the project: org-wide projects (groupId
+ * NULL) are open to every member; grouped projects only to group members
+ * (and super admins). Missing AND hidden rows are indistinguishable (both
+ * 404) — no oracle.
  */
 export function runVisibilityFilter(auth: GroupAuth) {
+  if (auth.role === "SUPER_ADMIN") return {};
+  return {
+    OR: [
+      { project: { groupId: null } },
+      { project: { group: { members: { some: { userId: auth.userId } } } } },
+    ],
+  };
+}
+
+/** Same rule for Project where-clauses. */
+export function projectVisibilityFilter(auth: GroupAuth) {
   if (auth.role === "SUPER_ADMIN") return {};
   return {
     OR: [
@@ -77,8 +89,9 @@ export async function assertRunVisible(
 }
 
 /**
- * Write gate: same as visible, plus group members-only for grouped runs
- * (admins bypass). Org-wide runs stay writable by every member.
+ * Write gate: same as visible, plus group members-only for runs in grouped
+ * projects (admins bypass). Org-wide project runs stay writable by every
+ * member.
  */
 export async function assertRunWritable(
   auth: GroupAuth,
@@ -86,13 +99,37 @@ export async function assertRunWritable(
 ): Promise<{ id: string }> {
   const run = await db.run.findFirst({
     where: { id: runId, project: { orgId: auth.orgId } },
-    select: { id: true, groupId: true },
+    select: { id: true, project: { select: { groupId: true } } },
   });
   if (!run) throw new ApiError(404, "run not found");
-  if (run.groupId && !(await canWriteGroup(auth, run.groupId))) {
+  if (
+    run.project.groupId &&
+    !(await canWriteGroup(auth, run.project.groupId))
+  ) {
     throw new ApiError(403, "not a member of this run's group");
   }
   return run;
+}
+
+/**
+ * Project gate for member-level operations (rename, artifacts, overview):
+ * the project must exist in-org AND be visible. Admins bypass.
+ */
+export async function assertProjectVisible(
+  auth: GroupAuth,
+  orgId: string,
+  slug: string,
+): Promise<{ id: string }> {
+  const project = await db.project.findFirst({
+    where: {
+      orgId,
+      slug,
+      ...projectVisibilityFilter(auth),
+    },
+    select: { id: true },
+  });
+  if (!project) throw new ApiError(404, "project not found");
+  return project;
 }
 
 async function groupInOrg(orgId: string, slug: string) {
@@ -109,8 +146,13 @@ export interface GroupSummary {
   name: string;
   description: string;
   memberCount: number;
+  projectCount: number;
   runCount: number;
   createdAt: Date;
+}
+
+async function countGroupRuns(groupId: string): Promise<number> {
+  return db.run.count({ where: { project: { groupId } } });
 }
 
 /** Groups visible to the caller: all for admins, member-groups for members. */
@@ -133,16 +175,19 @@ export async function listGroups(
       name: true,
       description: true,
       createdAt: true,
-      _count: { select: { members: true, runs: true } },
+      _count: { select: { members: true, projects: true } },
     },
   });
-  return groups.map((g) => ({
+  // One small count per group; group lists are tiny by nature.
+  const runCounts = await Promise.all(groups.map((g) => countGroupRuns(g.id)));
+  return groups.map((g, i) => ({
     id: g.id,
     slug: g.slug,
     name: g.name,
     description: g.description,
     memberCount: g._count.members,
-    runCount: g._count.runs,
+    projectCount: g._count.projects,
+    runCount: runCounts[i]!,
     createdAt: g.createdAt,
   }));
 }
@@ -171,7 +216,7 @@ export async function createGroup(
         createdAt: true,
       },
     });
-    return { ...group, memberCount: 0, runCount: 0 };
+    return { ...group, memberCount: 0, projectCount: 0, runCount: 0 };
   } catch (e) {
     if (
       typeof e === "object" &&
@@ -206,7 +251,7 @@ export async function getGroup(
         orderBy: { addedAt: "asc" },
         select: { user: { select: { id: true, email: true, name: true } } },
       },
-      _count: { select: { runs: true } },
+      _count: { select: { projects: true } },
     },
   });
   if (!group) throw new ApiError(404, "group not found");
@@ -223,7 +268,8 @@ export async function getGroup(
     name: group.name,
     description: group.description,
     memberCount: group.members.length,
-    runCount: group._count.runs,
+    projectCount: group._count.projects,
+    runCount: await countGroupRuns(group.id),
     createdAt: group.createdAt,
     members: group.members.map((m) => m.user),
   };
@@ -250,20 +296,20 @@ export async function updateGroup(
       name: true,
       description: true,
       createdAt: true,
-      _count: { select: { members: true, runs: true } },
+      _count: { select: { members: true, projects: true } },
     },
   });
   return {
     ...updated,
     memberCount: updated._count.members,
-    runCount: updated._count.runs,
+    projectCount: updated._count.projects,
+    runCount: await countGroupRuns(updated.id),
   };
 }
 
 /**
- * Delete a group: member links vanish (cascade), runs are UNGROUPED to
- * org-wide (SetNull) — never deleted. History survives; only the boundary
- * dissolves.
+ * Delete a group: member links vanish (cascade), projects UNGROUP to
+ * org-wide (SetNull) — nothing is ever deleted but the boundary itself.
  */
 export async function deleteGroup(
   session: Session | null,
@@ -329,21 +375,19 @@ export async function removeGroupMember(
   return { id: targetUserId };
 }
 
-export interface GroupRunRow {
+export interface GroupProjectRow {
   id: string;
+  slug: string;
   name: string;
-  status: string;
-  projectSlug: string;
-  createdBy: string;
-  startedAt: Date;
+  runCount: number;
+  lastActiveAt: Date | null;
 }
 
-/** Runs in a group, newest first. Caller must see the group (checked by
- * getGroup in the page, or membership inline here for API use). */
-export async function listGroupRuns(
+/** Projects in a group (caller must see the group — same 404 rule). */
+export async function listGroupProjects(
   auth: GroupAuth,
   slug: string,
-): Promise<GroupRunRow[]> {
+): Promise<GroupProjectRow[]> {
   const group = await db.group.findUnique({
     where: { orgId_slug: { orgId: auth.orgId, slug } },
     select: { id: true },
@@ -356,25 +400,27 @@ export async function listGroupRuns(
     });
     if (!membership) throw new ApiError(404, "group not found");
   }
-  const runs = await db.run.findMany({
+  const projects = await db.project.findMany({
     where: { groupId: group.id },
-    orderBy: [{ startedAt: "desc" }, { id: "desc" }],
-    take: 200,
+    orderBy: { name: "asc" },
     select: {
       id: true,
+      slug: true,
       name: true,
-      status: true,
-      startedAt: true,
-      createdBy: { select: { email: true } },
-      project: { select: { slug: true } },
+      runs: { select: { startedAt: true } },
     },
   });
-  return runs.map((r) => ({
-    id: r.id,
-    name: r.name,
-    status: r.status,
-    projectSlug: r.project.slug,
-    createdBy: r.createdBy.email,
-    startedAt: r.startedAt,
+  return projects.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    runCount: p.runs.length,
+    lastActiveAt:
+      p.runs.length === 0
+        ? null
+        : p.runs.reduce(
+            (m, r) => (r.startedAt > m ? r.startedAt : m),
+            p.runs[0]!.startedAt,
+          ),
   }));
 }

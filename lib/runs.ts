@@ -4,6 +4,7 @@ import {
   assertRunVisible,
   assertRunWritable,
   canWriteGroup,
+  projectVisibilityFilter,
   resolveGroup,
   runVisibilityFilter,
   type GroupAuth,
@@ -74,18 +75,9 @@ export async function createRun(
   auth: GroupAuth & { userId: string },
   input: CreateRunInput,
 ): Promise<{ run_id: string; name: string; url: string }> {
-  const slug = slugify(input.project) || "default";
-  const project = await db.project.upsert({
-    where: { orgId_slug: { orgId: auth.orgId, slug } },
-    update: {},
-    // Deliberate upsert-on-first-log (PRD §7.2): the fastest path to a first
-    // project is calling init() from a script — you rarely "create a project"
-    // as a standalone action, mirroring how W&B works.
-    create: { orgId: auth.orgId, slug, name: input.project },
-    select: { id: true, slug: true },
-  });
-  // Group-scoped runs: the group must exist and the caller must belong to it
-  // (admins bypass). A non-member logging into someone's group is a 403.
+  // Optional group: the project is resolved or created INSIDE it (caller
+  // must belong, admins bypass). A group-scoped project collects that
+  // group's runs; runs inherit visibility from their project.
   let groupId: string | null = null;
   if (input.group !== undefined) {
     const group = await resolveGroup(auth.orgId, input.group);
@@ -94,6 +86,52 @@ export async function createRun(
     }
     groupId = group.id;
   }
+  const slug = slugify(input.project) || "default";
+  // Deliberate upsert-on-first-log (PRD §7.2): the fastest path to a first
+  // project is calling init() from a script. Visibility-aware: a hidden
+  // project never resolves (and a colliding hidden slug surfaces as the
+  // same 404 as a missing one — no oracle either way).
+  const visible = projectVisibilityFilter(auth);
+  const existing = await db.project.findFirst({
+    where: { orgId: auth.orgId, slug, ...visible },
+    select: { id: true, slug: true, groupId: true },
+  });
+  let project: { id: string; slug: string; groupId: string | null };
+  if (existing) {
+    if (groupId !== null && existing.groupId !== groupId) {
+      throw new ApiError(409, "project is not in this group");
+    }
+    project = existing;
+  } else {
+    try {
+      project = await db.project.create({
+        data: { orgId: auth.orgId, slug, name: input.project, groupId },
+        select: { id: true, slug: true, groupId: true },
+      });
+    } catch (e) {
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "code" in e &&
+        (e as { code: string }).code === "P2002"
+      ) {
+        // Either lost a creation race (re-read and proceed) or the slug
+        // belongs to a project hidden from the caller (same 404 as missing
+        // — no oracle either way).
+        const retry = await db.project.findFirst({
+          where: { orgId: auth.orgId, slug, ...visible },
+          select: { id: true, slug: true, groupId: true },
+        });
+        if (!retry) throw new ApiError(404, "project not found");
+        project = retry;
+      } else {
+        throw e;
+      }
+    }
+    if (groupId !== null && project.groupId !== groupId) {
+      throw new ApiError(409, "project is not in this group");
+    }
+  }
   const name = input.name ?? `run-${shortId()}`;
   const run = await db.run.create({
     data: {
@@ -101,7 +139,6 @@ export async function createRun(
       name,
       config: (input.config ?? {}) as object,
       tags: input.tags ?? [],
-      groupId,
       createdById: auth.userId,
     },
     select: { id: true, name: true },
@@ -269,7 +306,7 @@ export async function listRuns(
       summary: true,
       startedAt: true,
       finishedAt: true,
-      group: { select: { slug: true, name: true } },
+      project: { select: { group: { select: { slug: true, name: true } } } },
       createdBy: { select: { email: true } },
     },
   });
@@ -282,7 +319,7 @@ export async function listRuns(
       status: r.status,
       tags: r.tags,
       notes: r.notes,
-      group: r.group,
+      group: r.project.group,
       summary: r.summary,
       createdBy: r.createdBy.email,
       startedAt: r.startedAt,
@@ -351,9 +388,15 @@ export async function getRun(
       startedAt: true,
       updatedAt: true,
       finishedAt: true,
-      group: { select: { slug: true, name: true } },
+      project: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          group: { select: { slug: true, name: true } },
+        },
+      },
       createdBy: { select: { email: true } },
-      project: { select: { id: true, slug: true, name: true } },
     },
   });
   if (!run) throw new KeyAuthError(404, "run not found");
@@ -384,63 +427,31 @@ export async function getRun(
     createdBy: run.createdBy.email,
     startedAt: run.startedAt,
     finishedAt,
-    project: run.project,
-    group: run.group,
+    project: {
+      id: run.project.id,
+      slug: run.project.slug,
+      name: run.project.name,
+    },
+    group: run.project.group,
     keys: keyRows.map((k) => k.key).sort(),
   };
 }
 
-/**
- * Rename / retag / annotate / regroup a run. The caller must satisfy the
- * write rule for the run's CURRENT group, and — when moving groups — for
- * the TARGET group too (null target = org-wide, always allowed).
- */
+/** Rename / retag / annotate a run. Write-gated on the run's project group. */
 export async function updateRun(
   auth: GroupAuth,
   runId: string,
   input: UpdateRunInput,
-): Promise<{
-  id: string;
-  name: string;
-  tags: string[];
-  notes: string;
-  group: { slug: string; name: string } | null;
-}> {
-  const current = await db.run.findFirst({
-    where: { id: runId, project: { orgId: auth.orgId } },
-    select: { id: true, groupId: true },
-  });
-  if (!current) throw new ApiError(404, "run not found");
-  if (current.groupId && !(await canWriteGroup(auth, current.groupId))) {
-    throw new ApiError(403, "not a member of this run's group");
-  }
-  let groupId: string | null | undefined;
-  if (input.group !== undefined) {
-    if (input.group === null) {
-      groupId = null;
-    } else {
-      const target = await resolveGroup(auth.orgId, input.group);
-      if (!(await canWriteGroup(auth, target.id))) {
-        throw new ApiError(403, "not a member of the target group");
-      }
-      groupId = target.id;
-    }
-  }
+): Promise<{ id: string; name: string; tags: string[]; notes: string }> {
+  await assertRunWritable(auth, runId);
   const run = await db.run.update({
     where: { id: runId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
-      ...(groupId !== undefined ? { groupId } : {}),
     },
-    select: {
-      id: true,
-      name: true,
-      tags: true,
-      notes: true,
-      group: { select: { slug: true, name: true } },
-    },
+    select: { id: true, name: true, tags: true, notes: true },
   });
   return run;
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
+import { ProjectGroupMove } from "@/components/project-group-move";
 import { ProjectRename } from "@/components/project-rename";
 import { ProjectTabs } from "@/components/project-tabs";
 import {
@@ -83,7 +84,25 @@ export default async function ProjectOverviewPage({
                 <dl className="flex flex-col gap-2.5 text-sm">
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Visibility</dt>
-                    <dd>Team — everyone in {org.name} sees everything</dd>
+                    <dd>
+                      {ov.project.group
+                        ? `Group “${ov.project.group.name}” (members only)`
+                        : `Org-wide — everyone in ${org.name} sees everything`}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted-foreground">Group</dt>
+                    <dd>
+                      {session.role === "SUPER_ADMIN" ? (
+                        <ProjectGroupMove
+                          orgSlug={org.slug}
+                          projectSlug={ov.project.slug}
+                          current={ov.project.group}
+                        />
+                      ) : (
+                        (ov.project.group?.name ?? "Org-wide")
+                      )}
+                    </dd>
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Last active</dt>

@@ -91,6 +91,7 @@ export default async function RunDetailPage({
               version: a.version,
             }))}
             group={detail.group}
+            groupBasePath={`/${org.slug}/groups`}
           />
         </TabsContent>
         <TabsContent value="config">

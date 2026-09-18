@@ -18,6 +18,8 @@ import {
 import { POST as addMemberPOST } from "@/app/api/v1/groups/[slug]/members/route";
 import { DELETE as removeMemberDELETE } from "@/app/api/v1/groups/[slug]/members/[userId]/route";
 import { GET as overviewGET } from "@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/route";
+import { PATCH as updateProjectPATCH } from "@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/route";
+import { POST as createProjectPOST } from "@/app/api/v1/orgs/[orgSlug]/projects/route";
 import { generateApiKey, hashApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { acceptInvite, inviteMember } from "@/lib/team";
@@ -69,6 +71,34 @@ async function makeGroup(
   return res;
 }
 
+async function makeProject(
+  session: Session,
+  orgSlug: string,
+  body: Record<string, string>,
+  status = 201,
+) {
+  const res = await createProjectPOST(
+    await authedRequest(`/api/v1/orgs/${orgSlug}/projects`, session, {
+      method: "POST",
+      body,
+    }),
+    { params: Promise.resolve({ orgSlug }) },
+  );
+  expect(res.status).toBe(status);
+  return res;
+}
+
+async function addToGroup(admin: Session, groupSlug: string, email: string) {
+  const res = await addMemberPOST(
+    await authedRequest(`/api/v1/groups/${groupSlug}/members`, admin, {
+      method: "POST",
+      body: { email },
+    }),
+    { params: Promise.resolve({ slug: groupSlug }) },
+  );
+  expect(res.status).toBe(201);
+}
+
 describe.skipIf(!apiTestsEnabled)("groups", () => {
   it("admin creates; dup → 409; member → 403; anon → 401", async () => {
     const org = await threePersonOrg("grp");
@@ -98,13 +128,7 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
     const org = await threePersonOrg("grp");
     try {
       await makeGroup(org.admin, { name: "G1" });
-      await addMemberPOST(
-        await authedRequest("/api/v1/groups/g1/members", org.admin, {
-          method: "POST",
-          body: { email: org.member.email },
-        }),
-        { params: Promise.resolve({ slug: "g1" }) },
-      );
+      await addToGroup(org.admin, "g1", org.member.email);
 
       const mine = (await (
         await groupsGET(await authedRequest("/api/v1/groups", org.member))
@@ -193,43 +217,58 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
     }
   });
 
-  it("grouped runs are invisible and unwritable to outsiders", async () => {
+  it("members create projects in their groups; strangers cannot plant any", async () => {
     const org = await threePersonOrg("grp");
     try {
       await makeGroup(org.admin, { name: "Secret" });
-      await addMemberPOST(
-        await authedRequest("/api/v1/groups/secret/members", org.admin, {
-          method: "POST",
-          body: { email: org.member.email },
-        }),
-        { params: Promise.resolve({ slug: "secret" }) },
+      await addToGroup(org.admin, "secret", org.member.email);
+
+      const ok = await makeProject(org.member, org.orgSlug, {
+        name: "Secret Project",
+        group: "secret",
+      });
+      expect(((await ok.json()).project as { slug: string }).slug).toBe(
+        "secret-project",
       );
 
-      // Member creates a group run; stranger cannot create into it.
+      const stranger = await makeProject(
+        org.third,
+        org.orgSlug,
+        { name: "Sneaky", group: "secret" },
+        403,
+      );
+      expect((await stranger.json()).error).toBe("not a member of this group");
+
+      const missing = await makeProject(
+        org.member,
+        org.orgSlug,
+        { name: "Lost", group: "nope" },
+        404,
+      );
+      expect((await missing.json()).error).toBe("group not found");
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("grouped projects hide runs from outsiders on every surface", async () => {
+    const org = await threePersonOrg("grp");
+    try {
+      await makeGroup(org.admin, { name: "Secret" });
+      await addToGroup(org.admin, "secret", org.member.email);
+      await makeProject(org.member, org.orgSlug, {
+        name: "Secret Project",
+        group: "secret",
+      });
+
       const mk = await runsPOST(
         await authedRequest("/api/v1/runs", org.member, {
           method: "POST",
-          body: { project: "p", name: "hidden", group: "secret" },
+          body: { project: "secret-project", name: "hidden" },
         }),
       );
       expect(mk.status).toBe(201);
       const runId = ((await mk.json()) as { run_id: string }).run_id;
-
-      const strangerCreate = await runsPOST(
-        await authedRequest("/api/v1/runs", org.third, {
-          method: "POST",
-          body: { project: "p", name: "sneaky", group: "secret" },
-        }),
-      );
-      expect(strangerCreate.status).toBe(403);
-
-      const badGroup = await runsPOST(
-        await authedRequest("/api/v1/runs", org.member, {
-          method: "POST",
-          body: { project: "p", name: "lost", group: "nope" },
-        }),
-      );
-      expect(badGroup.status).toBe(404);
 
       // Outsider reads: 404 across every surface (no oracle).
       const getRes = await runGET(
@@ -247,8 +286,18 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
         { params: Promise.resolve({ runId }) },
       );
       expect(expRes.status).toBe(404);
+      const ovRes = await overviewGET(
+        await authedRequest("/api/v1/x", org.third),
+        {
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "secret-project",
+          }),
+        },
+      );
+      expect(ovRes.status).toBe(404);
 
-      // Outsider writes: 403/404, never applied.
+      // Outsider writes: 403, never applied.
       const log = await logPOST(
         await authedRequest(`/api/v1/runs/${runId}/log`, org.third, {
           method: "POST",
@@ -282,18 +331,14 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
       );
       expect(adminSeen.status).toBe(200);
 
-      // Project overview hides the run from the stranger's totals.
-      const ov = await overviewGET(
-        await authedRequest("/api/v1/x", org.third),
-        {
-          params: Promise.resolve({ orgSlug: org.orgSlug, projectSlug: "p" }),
-        },
-      );
-      expect(((await ov.json()) as { totalRuns: number }).totalRuns).toBe(0);
+      // Project overview counts the run for members only.
       const ovMember = await overviewGET(
         await authedRequest("/api/v1/x", org.member),
         {
-          params: Promise.resolve({ orgSlug: org.orgSlug, projectSlug: "p" }),
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "secret-project",
+          }),
         },
       );
       expect(((await ovMember.json()) as { totalRuns: number }).totalRuns).toBe(
@@ -304,17 +349,11 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
     }
   });
 
-  it("SDK keys enforce membership; moving and ungrouping need rights", async () => {
+  it("SDK group param resolves or creates the project inside the group", async () => {
     const org = await threePersonOrg("grp");
     try {
       await makeGroup(org.admin, { name: "Gated" });
-      await addMemberPOST(
-        await authedRequest("/api/v1/groups/gated/members", org.admin, {
-          method: "POST",
-          body: { email: org.member.email },
-        }),
-        { params: Promise.resolve({ slug: "gated" }) },
-      );
+      await addToGroup(org.admin, "gated", org.member.email);
       const { plaintext } = generateApiKey();
       await db.apiKey.create({
         data: {
@@ -325,79 +364,122 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
         },
       });
 
+      // Stranger's key cannot log into the group.
       const denied = await runsPOST(
         apiRequest("/api/v1/runs", {
           method: "POST",
-          body: { project: "p", name: "x", group: "gated" },
+          body: { project: "gated-proj", name: "x", group: "gated" },
           apiKey: plaintext,
         }),
       );
       expect(denied.status).toBe(403);
 
-      // Member moves an org-wide run into their group, then back out.
-      const mk = await runsPOST(
-        await authedRequest("/api/v1/runs", org.third, {
+      // Member's first log creates the project inside the group.
+      const { plaintext: memberKey, keyHash } = generateApiKey();
+      await db.apiKey.create({
+        data: {
+          orgId: org.orgId,
+          userId: org.member.userId,
+          keyHash,
+          label: "member-key",
+        },
+      });
+      const created = await runsPOST(
+        apiRequest("/api/v1/runs", {
           method: "POST",
-          body: { project: "p", name: "movable" },
+          body: { project: "gated-proj", name: "first", group: "gated" },
+          apiKey: memberKey,
         }),
       );
-      const runId = ((await mk.json()) as { run_id: string }).run_id;
-      const strangerMove = await runPATCH(
-        await authedRequest(`/api/v1/runs/${runId}`, org.third, {
-          method: "PATCH",
-          body: { group: "gated" },
-        }),
-        { params: Promise.resolve({ runId }) },
-      );
-      expect(strangerMove.status).toBe(403);
+      expect(created.status).toBe(201);
 
-      const adminMove = await runPATCH(
-        await authedRequest(`/api/v1/runs/${runId}`, org.admin, {
-          method: "PATCH",
-          body: { group: "gated" },
+      // Same project + different group = conflict, not a silent move
+      // (as admin, so membership checks pass and only consistency bites).
+      await makeGroup(org.admin, { name: "Other" });
+      const conflict = await runsPOST(
+        await authedRequest("/api/v1/runs", org.admin, {
+          method: "POST",
+          body: { project: "gated-proj", name: "second", group: "other" },
         }),
-        { params: Promise.resolve({ runId }) },
       );
-      expect(adminMove.status).toBe(200);
+      expect(conflict.status).toBe(409);
 
-      // Now the stranger cannot even see it; the member ungroups it back.
-      const hidden = await runGET(
-        await authedRequest(`/api/v1/runs/${runId}`, org.third),
-        { params: Promise.resolve({ runId }) },
-      );
-      expect(hidden.status).toBe(404);
-      const ungroup = await runPATCH(
-        await authedRequest(`/api/v1/runs/${runId}`, org.member, {
-          method: "PATCH",
-          body: { group: null },
+      // Existing org-wide project + group param → 409.
+      await makeProject(org.admin, org.orgSlug, { name: "Shared" });
+      const clash = await runsPOST(
+        await authedRequest("/api/v1/runs", org.member, {
+          method: "POST",
+          body: { project: "shared", name: "x", group: "gated" },
         }),
-        { params: Promise.resolve({ runId }) },
       );
-      expect(ungroup.status).toBe(200);
-      expect(((await ungroup.json()).run as { group: null }).group).toBeNull();
+      expect(clash.status).toBe(409);
     } finally {
       await org.cleanup();
     }
   });
 
-  it("deleting a group ungroups runs; only admins manage groups", async () => {
+  it("only admins move projects; deleting a group ungroups them", async () => {
     const org = await threePersonOrg("grp");
     try {
-      await makeGroup(org.admin, { name: "Temp", description: "d" });
-      await addMemberPOST(
-        await authedRequest("/api/v1/groups/temp/members", org.admin, {
-          method: "POST",
-          body: { email: org.member.email },
-        }),
-        { params: Promise.resolve({ slug: "temp" }) },
-      );
+      await makeGroup(org.admin, { name: "Temp" });
+      await addToGroup(org.admin, "temp", org.member.email);
+      await makeProject(org.member, org.orgSlug, {
+        name: "Temp Project",
+        group: "temp",
+      });
       const mk = await runsPOST(
         await authedRequest("/api/v1/runs", org.member, {
           method: "POST",
-          body: { project: "p", name: "grouped", group: "temp" },
+          body: { project: "temp-project", name: "grouped" },
         }),
       );
       const runId = ((await mk.json()) as { run_id: string }).run_id;
+
+      const delParams = (slug: string) => ({
+        params: Promise.resolve({ orgSlug: org.orgSlug, projectSlug: slug }),
+      });
+      const memberMove = await updateProjectPATCH(
+        await authedRequest("/api/v1/x", org.member, {
+          method: "PATCH",
+          body: { group: null },
+        }),
+        delParams("temp-project"),
+      );
+      expect(memberMove.status).toBe(403);
+
+      const adminMove = await updateProjectPATCH(
+        await authedRequest("/api/v1/x", org.admin, {
+          method: "PATCH",
+          body: { group: null },
+        }),
+        delParams("temp-project"),
+      );
+      expect(adminMove.status).toBe(200);
+      expect(
+        ((await adminMove.json()).project as { group: null }).group,
+      ).toBeNull();
+
+      // Run is org-wide now: the former stranger sees it.
+      const seen = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, org.third),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(seen.status).toBe(200);
+
+      // Move it back, then delete the group: project ungroups, run survives.
+      const back = await updateProjectPATCH(
+        await authedRequest("/api/v1/x", org.admin, {
+          method: "PATCH",
+          body: { group: "temp" },
+        }),
+        delParams("temp-project"),
+      );
+      expect(back.status).toBe(200);
+      const hidden = await runGET(
+        await authedRequest(`/api/v1/runs/${runId}`, org.third),
+        { params: Promise.resolve({ runId }) },
+      );
+      expect(hidden.status).toBe(404);
 
       const memberDel = await groupDELETE(
         await authedRequest("/api/v1/groups/temp", org.member, {
@@ -406,7 +488,6 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
         slug("temp"),
       );
       expect(memberDel.status).toBe(403);
-
       const del = await groupDELETE(
         await authedRequest("/api/v1/groups/temp", org.admin, {
           method: "DELETE",
@@ -414,40 +495,53 @@ describe.skipIf(!apiTestsEnabled)("groups", () => {
         slug("temp"),
       );
       expect(del.status).toBe(200);
-
-      // Run survives, org-wide, visible to the former stranger.
-      const seen = await runGET(
+      const visible = await runGET(
         await authedRequest(`/api/v1/runs/${runId}`, org.third),
         { params: Promise.resolve({ runId }) },
       );
-      expect(seen.status).toBe(200);
-      expect(((await seen.json()).run as { group: null }).group).toBeNull();
+      expect(visible.status).toBe(200);
 
       const gone = await groupGET(
         await authedRequest("/api/v1/groups/temp", org.admin),
         slug("temp"),
       );
       expect(gone.status).toBe(404);
+    } finally {
+      await org.cleanup();
+    }
+  });
 
-      // Rename/description update works; empty patch → 400.
-      await makeGroup(org.admin, { name: "Renamable" });
-      const renamed = await groupPATCH(
-        await authedRequest("/api/v1/groups/renamable", org.admin, {
+  it("rename still works; empty patch → 400", async () => {
+    const org = await threePersonOrg("grp");
+    try {
+      await makeProject(org.member, org.orgSlug, { name: "Renamable" });
+      const renamed = await updateProjectPATCH(
+        await authedRequest("/api/v1/x", org.member, {
           method: "PATCH",
-          body: { name: "Renamed", description: "new" },
+          body: { name: "Renamed" },
         }),
-        slug("renamable"),
+        {
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "renamable",
+          }),
+        },
       );
       expect(renamed.status).toBe(200);
-      expect(((await renamed.json()).group as { name: string }).name).toBe(
+      expect(((await renamed.json()).project as { name: string }).name).toBe(
         "Renamed",
       );
-      const empty = await groupPATCH(
-        await authedRequest("/api/v1/groups/renamable", org.admin, {
+      const empty = await updateProjectPATCH(
+        await authedRequest("/api/v1/x", org.member, {
           method: "PATCH",
           body: {},
         }),
-        slug("renamable"),
+        {
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "renamable",
+          }),
+        },
       );
       expect(empty.status).toBe(400);
     } finally {

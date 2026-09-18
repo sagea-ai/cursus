@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 
 import Link from "next/link";
 
-import { GroupAssign } from "@/components/group-assign";
-
 // Run Overview tab: identity, lifecycle, produced artifacts, and the
 // free-text notes field (the table's NOTES column edits here).
 export function RunOverview({
@@ -22,6 +20,7 @@ export function RunOverview({
   artifactsBasePath,
   producedArtifacts,
   group,
+  groupBasePath,
 }: {
   runId: string;
   runPath: string;
@@ -33,6 +32,7 @@ export function RunOverview({
   artifactsBasePath: string;
   producedArtifacts: { artifactName: string; version: number }[];
   group: { slug: string; name: string } | null;
+  groupBasePath: string;
 }) {
   const [notes, setNotes] = React.useState(initialNotes);
   const [saved, setSaved] = React.useState(true);
@@ -84,7 +84,16 @@ export function RunOverview({
     [
       "Group",
       <span key="group">
-        <GroupAssign runId={runId} current={group} />
+        {group ? (
+          <Link
+            href={`${groupBasePath}/${group.slug}`}
+            className="font-mono text-xs text-accent-pale hover:underline"
+          >
+            {group.slug}
+          </Link>
+        ) : (
+          "Org-wide"
+        )}
       </span>,
     ],
     [

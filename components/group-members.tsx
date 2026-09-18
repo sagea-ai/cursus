@@ -29,8 +29,37 @@ export function GroupMembers({
 }) {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
+  const [candidates, setCandidates] = React.useState<
+    { id: string; email: string; name: string }[]
+  >([]);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+
+  // Existing org members for the autocomplete suggestions (the input still
+  // accepts any typed address — the server verifies org membership).
+  React.useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function load() {
+      const res = await fetch("/api/v1/team/members");
+      if (!res.ok || cancelled) return;
+      const body = await res.json();
+      setCandidates(
+        (body.members as { id: string; email: string; name: string }[]).map(
+          (m) => ({ id: m.id, email: m.email, name: m.name }),
+        ),
+      );
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  const suggestions = candidates.filter(
+    (c) => !members.some((m) => m.id === c.id),
+  );
+  const listId = `group-${groupSlug}-candidates`;
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -74,10 +103,21 @@ export function GroupMembers({
               id="member-email"
               type="email"
               required
+              list={listId}
+              autoComplete="off"
               placeholder="teammate@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
+            <datalist id={listId}>
+              {suggestions.map((c) => (
+                <option
+                  key={c.id}
+                  value={c.email}
+                  label={c.name ? `${c.name} (${c.email})` : c.email}
+                />
+              ))}
+            </datalist>
           </div>
           <Button type="submit" disabled={busy}>
             <FiUserPlus /> {busy ? "Adding…" : "Add"}

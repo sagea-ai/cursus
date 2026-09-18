@@ -52,16 +52,10 @@ export const updateRunSchema = z
     name: z.string().min(1).max(128).optional(),
     tags: z.array(z.string().min(1).max(64)).max(32).optional(),
     notes: z.string().max(2000).optional(),
-    // Move between groups (or null for org-wide). Membership in the target
-    // group (or admin) is required, checked server-side.
-    group: z.string().min(1).max(128).nullable().optional(),
   })
   .refine(
     (b) =>
-      b.name !== undefined ||
-      b.tags !== undefined ||
-      b.notes !== undefined ||
-      b.group !== undefined,
+      b.name !== undefined || b.tags !== undefined || b.notes !== undefined,
     { message: "nothing to update" },
   );
 
@@ -77,6 +71,17 @@ export type RunListSort = z.infer<typeof runListSortSchema>;
 export const renameProjectSchema = z.object({
   name: z.string().min(1).max(128),
 });
+
+export const updateProjectSchema = z
+  .object({
+    name: z.string().min(1).max(128).optional(),
+    // Move between groups (null = org-wide public). Super-admin-only,
+    // enforced server-side alongside the rename permission.
+    group: z.string().min(1).max(128).nullable().optional(),
+  })
+  .refine((b) => b.name !== undefined || b.group !== undefined, {
+    message: "nothing to update",
+  });
 
 export const groupSlugSchema = z
   .string()
@@ -170,6 +175,8 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(128),
   slug: projectSlugSchema.optional(),
+  // Optional group slug: members may create inside their own groups.
+  group: z.string().min(1).max(128).optional(),
 });
 
 export const metricsQuerySchema = z.object({

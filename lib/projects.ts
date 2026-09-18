@@ -1,16 +1,27 @@
 import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
-import { runVisibilityFilter } from "@/lib/groups";
+import {
+  assertProjectVisible,
+  canWriteGroup,
+  projectVisibilityFilter,
+  resolveGroup,
+  runVisibilityFilter,
+} from "@/lib/groups";
 import { slugify } from "@/lib/slug";
 
 // Project listing/creation for the dashboard (session auth). SDK run creation
 // upserts projects implicitly via POST /runs — this is the explicit path.
+//
+// Visibility: org-wide projects (groupId NULL) are open to every member;
+// grouped projects only to group members (and super admins). Hidden projects
+// 404 everywhere — the list, stats, rename, and delete paths all enforce it.
 
 export interface ProjectSummary {
   id: string;
   slug: string;
   name: string;
+  group: { slug: string; name: string } | null;
   runCount: number;
   lastRunAt: Date | null;
   statusCounts: Record<string, number>;
@@ -36,13 +47,14 @@ export async function listProjects(
   // One query + one batched include (not N+1): only the fields the cards
   // need. Counts/cards reflect VISIBLE runs only (group scoping applies).
   const projects = await db.project.findMany({
-    where: { orgId },
+    where: { orgId, ...projectVisibilityFilter(session) },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       slug: true,
       name: true,
       createdAt: true,
+      group: { select: { slug: true, name: true } },
       runs: {
         where: runVisibilityFilter(session),
         select: { status: true, startedAt: true },
@@ -61,6 +73,7 @@ export async function listProjects(
         id: p.id,
         slug: p.slug,
         name: p.name,
+        group: p.group,
         runCount: p.runs.length,
         lastRunAt,
         statusCounts,
@@ -75,15 +88,26 @@ export async function listProjects(
 export async function createProject(
   session: Session | null,
   orgSlug: string,
-  input: { name: string; slug?: string },
+  input: { name: string; slug?: string; group?: string },
 ): Promise<{ id: string; slug: string; name: string }> {
   requireAuth(session);
   const orgId = await orgIdFor(session, orgSlug);
   const slug = slugify(input.slug ?? input.name);
   if (!slug) throw new ApiError(400, "could not derive a slug from the name");
+  // Group placement: members may create inside their own groups, admins
+  // anywhere; omitted means org-wide public. Checked BEFORE the insert so a
+  // stranger can never plant a project in someone's group.
+  let groupId: string | null = null;
+  if (input.group !== undefined) {
+    const group = await resolveGroup(orgId, input.group);
+    if (!(await canWriteGroup(session, group.id))) {
+      throw new ApiError(403, "not a member of this group");
+    }
+    groupId = group.id;
+  }
   try {
     const project = await db.project.create({
-      data: { orgId, slug, name: input.name },
+      data: { orgId, slug, name: input.name, groupId },
       select: { id: true, slug: true, name: true },
     });
     return project;
@@ -108,11 +132,11 @@ export async function deleteProject(
 ): Promise<{ slug: string }> {
   requireRole(session, "SUPER_ADMIN");
   const orgId = await orgIdFor(session, orgSlug);
-  const project = await db.project.findUnique({
-    where: { orgId_slug: { orgId, slug: projectSlug } },
-    select: { id: true },
-  });
-  if (!project) throw new ApiError(404, "project not found");
+  const project = await assertProjectVisible(
+    { orgId, userId: session.userId, role: session.role },
+    orgId,
+    projectSlug,
+  );
   await db.project.delete({ where: { id: project.id } });
   return { slug: projectSlug };
 }
@@ -124,7 +148,13 @@ export interface ProjectContributor {
 }
 
 export interface ProjectOverview {
-  project: { id: string; slug: string; name: string; createdAt: Date };
+  project: {
+    id: string;
+    slug: string;
+    name: string;
+    createdAt: Date;
+    group: { slug: string; name: string } | null;
+  };
   /** v1 has no per-project visibility: everything is org-visible. */
   visibility: "Team";
   lastActiveAt: Date | null;
@@ -143,13 +173,19 @@ export async function getProjectOverview(
 ): Promise<ProjectOverview> {
   requireAuth(session);
   const orgId = await orgIdFor(session, orgSlug);
+  const { id: projectId } = await assertProjectVisible(
+    { orgId, userId: session.userId, role: session.role },
+    orgId,
+    projectSlug,
+  );
   const project = await db.project.findUnique({
-    where: { orgId_slug: { orgId, slug: projectSlug } },
+    where: { id: projectId },
     select: {
       id: true,
       slug: true,
       name: true,
       createdAt: true,
+      group: { select: { slug: true, name: true } },
       // Stats aggregate VISIBLE runs only — a member must not infer hidden
       // runs from totals (counts, compute, contributors all scoped).
       runs: {
@@ -191,6 +227,7 @@ export async function getProjectOverview(
       slug: project.slug,
       name: project.name,
       createdAt: project.createdAt,
+      group: project.group,
     },
     visibility: "Team",
     lastActiveAt,
@@ -201,20 +238,51 @@ export async function getProjectOverview(
   };
 }
 
-/** Rename a project (slug is stable). Any org member. */
-export async function renameProject(
+/**
+ * Rename and/or move a project (slug is stable). Any member may rename a
+ * project they can see; moving between groups is super-admin-only
+ * (group = null moves it back to org-wide public).
+ */
+export async function updateProject(
   session: Session | null,
   orgSlug: string,
   projectSlug: string,
-  name: string,
-): Promise<{ id: string; slug: string; name: string }> {
+  input: { name?: string; group?: string | null },
+): Promise<{
+  id: string;
+  slug: string;
+  name: string;
+  group: { slug: string; name: string } | null;
+}> {
   requireAuth(session);
   const orgId = await orgIdFor(session, orgSlug);
+  const { id: projectId } = await assertProjectVisible(
+    { orgId, userId: session.userId, role: session.role },
+    orgId,
+    projectSlug,
+  );
+  let groupId: string | null | undefined;
+  if (input.group !== undefined) {
+    requireRole(session, "SUPER_ADMIN");
+    if (input.group === null) {
+      groupId = null;
+    } else {
+      groupId = (await resolveGroup(orgId, input.group)).id;
+    }
+  }
   try {
     return await db.project.update({
-      where: { orgId_slug: { orgId, slug: projectSlug } },
-      data: { name },
-      select: { id: true, slug: true, name: true },
+      where: { id: projectId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(groupId !== undefined ? { groupId } : {}),
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        group: { select: { slug: true, name: true } },
+      },
     });
   } catch (e) {
     if (

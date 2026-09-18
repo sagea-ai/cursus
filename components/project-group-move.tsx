@@ -5,16 +5,17 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 
-// Move a run between groups (or back to org-wide). Options are the groups
-// the viewer belongs to (admins see all) — the server re-checks membership
-// on save, so a stale dropdown can never escalate.
+// Admin-only: move a project between groups (or back to org-wide).
+// Membership is re-checked server-side; a stale dropdown can never escalate.
 const NONE = "__none__";
 
-export function GroupAssign({
-  runId,
+export function ProjectGroupMove({
+  orgSlug,
+  projectSlug,
   current,
 }: {
-  runId: string;
+  orgSlug: string;
+  projectSlug: string;
   current: { slug: string; name: string } | null;
 }) {
   const router = useRouter();
@@ -49,7 +50,7 @@ export function GroupAssign({
   async function save() {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/v1/runs/${runId}`, {
+    const res = await fetch(`/api/v1/orgs/${orgSlug}/projects/${projectSlug}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ group: value === NONE ? null : value }),
@@ -57,7 +58,7 @@ export function GroupAssign({
     setBusy(false);
     if (!res.ok) {
       const body = await res.json();
-      setError(body.error ?? "Could not move run");
+      setError(body.error ?? "Could not move project");
       return;
     }
     router.refresh();
@@ -68,7 +69,7 @@ export function GroupAssign({
       <select
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        aria-label="Run group"
+        aria-label="Project group"
         className="h-8 rounded-md border border-input bg-card px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value={NONE}>No group (org-wide)</option>

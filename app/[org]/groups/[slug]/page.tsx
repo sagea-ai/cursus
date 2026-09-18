@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FiFolder } from "react-icons/fi";
 
 import { GroupMembers } from "@/components/group-members";
-import { StatusBadge } from "@/components/status-badge";
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { isNotFoundError } from "@/lib/http";
 import { requirePageSession } from "@/lib/page-auth";
-import { getGroup, listGroupRuns } from "@/lib/groups";
+import { getGroup, listGroupProjects } from "@/lib/groups";
 
 export default async function GroupDetailPage({
   params,
@@ -30,10 +30,10 @@ export default async function GroupDetailPage({
   const { org: orgSlug, slug } = await params;
   const { session, org } = await requirePageSession(orgSlug);
   let group;
-  let runs;
+  let projects;
   try {
     group = await getGroup(session, slug);
-    runs = await listGroupRuns(session, slug);
+    projects = await listGroupProjects(session, slug);
   } catch (e) {
     if (isNotFoundError(e)) notFound();
     throw e;
@@ -61,7 +61,8 @@ export default async function GroupDetailPage({
               Members ({group.memberCount})
             </CardTitle>
             <CardDescription>
-              Only these members (and super admins) see this group&apos;s runs.
+              Only these members (and super admins) see this group&apos;s
+              projects and runs.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -76,7 +77,10 @@ export default async function GroupDetailPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Log runs here</CardTitle>
-            <CardDescription>Pass the group slug at init time.</CardDescription>
+            <CardDescription>
+              Pass the group slug at init time; the project is created inside
+              this group.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <pre className="overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-relaxed">
@@ -88,46 +92,43 @@ export default async function GroupDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Runs ({runs.length})</CardTitle>
+          <CardTitle className="text-base">
+            Projects ({projects.length})
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {runs.length === 0 ? (
+          {projects.length === 0 ? (
             <p className="p-5 text-sm text-muted-foreground">
-              No runs in this group yet.
+              No projects in this group yet.
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Status</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>By</TableHead>
-                  <TableHead>Started</TableHead>
+                  <TableHead>Runs</TableHead>
+                  <TableHead>Last active</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {runs.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <StatusBadge status={r.status} />
-                    </TableCell>
+                {projects.map((p) => (
+                  <TableRow key={p.id}>
                     <TableCell>
                       <Link
-                        href={`/${org.slug}/${r.projectSlug}/runs/${r.id}`}
-                        className="font-medium text-accent-pale hover:underline"
+                        href={`/${org.slug}/${p.slug}/runs`}
+                        className="flex items-center gap-2 font-medium text-accent-pale hover:underline"
                       >
-                        {r.name}
+                        <FiFolder className="size-4 shrink-0" />
+                        {p.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {r.projectSlug}
-                    </TableCell>
-                    <TableCell className="max-w-40 truncate text-xs text-muted-foreground">
-                      {r.createdBy}
+                    <TableCell className="text-xs text-muted-foreground">
+                      {p.runCount}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {r.startedAt.toLocaleDateString()}
+                      {p.lastActiveAt
+                        ? p.lastActiveAt.toLocaleDateString()
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 ))}

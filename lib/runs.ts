@@ -10,7 +10,6 @@ import type {
 import { KeyAuthError } from "@/lib/api-auth";
 import { requireRole, type Session } from "@/lib/auth";
 
-// Business logic for ingestion routes. Route handlers stay thin
 // (validate → auth → call service → return); everything testable lives here.
 // No N+1: every read uses a single query with select/include (PRD §9).
 

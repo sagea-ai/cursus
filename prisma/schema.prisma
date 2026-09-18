@@ -96,11 +96,17 @@ model Project {
   org       Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   slug      String
   name      String
+  // Optional group scope. NULL = org-wide public project (visible to every
+  // member, the pre-groups behavior). Non-null = visible only to group
+  // members and super admins; runs inherit their project's visibility.
+  groupId   String?
+  group     Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   runs      Run[]
   artifacts Artifact[]
 
   @@unique([orgId, slug])
+  @@index([groupId])
 }
 
 model Run {
@@ -128,15 +134,9 @@ model Run {
   metrics     Metric[]
   artifactsProduced ArtifactVersion[]
 
-  // Optional group scope. NULL = org-wide (visible to every member, the
-  // pre-groups behavior). Non-null = visible only to group members and
-  // super admins (see runVisibilityFilter in lib/groups.ts).
-  groupId     String?
-  group       Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([status])
-  @@index([groupId])
 }
 
 model Metric {
@@ -170,7 +170,7 @@ model Group {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   members     GroupMember[]
-  runs        Run[]
+  projects    Project[]
 
   @@unique([orgId, slug])
   @@index([orgId])

@@ -3,10 +3,10 @@
 [![CI](https://github.com/sagea/cursus/actions/workflows/ci.yml/badge.svg)](https://github.com/sagea/cursus/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 
-A minimal, self-hostable experiment tracker — a barebones Weights & Biases.
+A minimal, self-hostable experiment tracker, a barebones Weights & Biases.
 Create a run, log scalars/config over time, view charts, compare runs, manage
-your team. Nothing else. See [PRD.md](./PRD.md) for the full spec and
-[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the design rationale.
+your team. Nothing else. See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+for the design rationale.
 
 ## What this is / isn't (honest version)
 
@@ -15,7 +15,7 @@ Cursus replaces W&B for scalar metrics + run metadata with team support
 or dataset registry, multi-node run aggregation (log from rank 0 only),
 per-project permissions or custom roles, report/notebook docs, alerting, or
 system-metrics auto-capture. If you need those, Aim and MLflow are excellent
-and occupy similar territory — Cursus trades their scope for a smaller codebase
+and occupy similar territory: Cursus trades their scope for a smaller codebase
 and a `docker compose up` deploy story.
 
 ## Quickstart (self-host, < 10 min)
@@ -31,7 +31,7 @@ npm install && npm run dev  # dashboard at http://localhost:3000
 
 ```bash
 export SESSION_SECRET="$(openssl rand -base64 32)"
-# Point the app at the compose database — note: docker compose interpolates
+# Point the app at the compose database. Note: docker compose interpolates
 # $DATABASE_URL from a repo .env file if one exists, so export it explicitly.
 export DATABASE_URL="postgresql://cursus:cursus@db:5432/cursus?schema=public"
 docker compose --profile selfhost up --build
@@ -54,7 +54,7 @@ Point `DATABASE_URL` at a managed Postgres (Vercel Postgres, Neon, or
 Supabase) and set `SESSION_SECRET` to a random value. Run migrations once
 with `npx prisma migrate deploy` against that database.
 
-SDK (distribution name `sagea-cursus` — `cursus` is taken on PyPI):
+SDK (distribution name `sagea-cursus`; `cursus` is taken on PyPI):
 
 ```bash
 pip install sagea-cursus
@@ -84,7 +84,7 @@ cursus.finish()
 ## Team & auth model
 
 Two roles: super admin (invite/promote/demote/deactivate, revoke any key) and
-member (projects, own keys, view everything — no private projects in v1).
+member (projects, own keys, view everything; no private projects in v1).
 First boot creates the org + super admin via `POST /api/v1/auth/bootstrap`
 (empty-DB only); everyone else joins through invite links the admin copies
 manually (no email infra in v1).
@@ -92,7 +92,7 @@ manually (no email infra in v1).
 ## Contributing
 
 TypeScript strict, ESLint + Prettier, `ruff` for the SDK. Every feature ships
-with tests — new code without a test is a review blocker. `npm run
+with tests: new code without a test is a review blocker. `npm run
 lint && npm run typecheck && npm test`, plus `pytest` in `sdk/`. UI is
 shadcn/ui + `react-icons` exclusively (`npm run lint:deps` enforces the ban on
 `lucide-react` et al). Conventional Commits (`feat:`/`fix:`/`chore:`)

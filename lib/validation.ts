@@ -99,3 +99,10 @@ export const metricsQuerySchema = z.object({
   max_points: z.coerce.number().int().min(1).max(10000).optional(),
   after_step: z.coerce.number().int().nonnegative().optional(),
 });
+
+export const exportQuerySchema = z.object({
+  format: z.enum(["csv", "json"]).optional().default("csv"),
+  key: z.string().min(1).max(256).optional(),
+});
+
+export type ExportQuery = z.infer<typeof exportQuerySchema>;

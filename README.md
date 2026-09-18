@@ -1,7 +1,7 @@
 # Cursus
 
 [![CI](https://github.com/sagea/cursus/actions/workflows/ci.yml/badge.svg)](https://github.com/sagea/cursus/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![License](https://img.shields.io/badge/License-SAGEA_Noncommercial-lightgrey.svg)](./LICENSE)
 
 ![Cursus banner](./assets/banner.png)
 

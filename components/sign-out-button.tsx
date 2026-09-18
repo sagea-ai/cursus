@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { FiLogOut } from "react-icons/fi";
@@ -9,9 +10,11 @@ import { Button } from "@/components/ui/button";
 export function SignOutButton({
   email,
   name,
+  profileHref,
 }: {
   email: string;
   name: string;
+  profileHref: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -25,12 +28,16 @@ export function SignOutButton({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="min-w-0 flex-1">
+      <Link
+        href={profileHref}
+        className="min-w-0 flex-1 rounded-md hover:bg-black/[0.04]"
+        title="View profile"
+      >
         <span className="block truncate text-xs font-medium">{name}</span>
         <span className="block truncate text-[11px] text-muted-foreground">
           {email}
         </span>
-      </span>
+      </Link>
       <Button
         variant="ghost"
         size="icon"

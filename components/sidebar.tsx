@@ -176,7 +176,11 @@ export function Sidebar({
             {(displayName || email).charAt(0).toUpperCase()}
           </span>
         ) : (
-          <SignOutButton email={email} name={displayName} />
+          <SignOutButton
+            email={email}
+            name={displayName}
+            profileHref={`/${orgSlug}/profile`}
+          />
         )}
       </div>
     </aside>

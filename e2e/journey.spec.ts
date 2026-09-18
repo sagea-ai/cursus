@@ -351,4 +351,26 @@ test("critical journey: bootstrap to restricted member", async ({
     headers: mh,
   });
   expect(mRun.status()).toBe(404);
+
+  // 9. Profile: identity, activity heatmap, editable bio, own runs.
+  await page.goto(`/${orgSlug}/profile`);
+  await expect(page.getByText(MEMBER.email).first()).toBeVisible();
+  await expect(page.getByText("Activity")).toBeVisible();
+  await expect(page.getByText("Recent runs")).toBeVisible();
+  await page.getByRole("button", { name: "Edit profile" }).click();
+  await page.getByLabel("Bio").fill("e2e bio");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("e2e bio")).toBeVisible();
+
+  // The member's own runs (not the admin's) populate Recent runs.
+  const mmk = await request.post("/api/v1/runs", {
+    headers: { Cookie: memberCookie },
+    data: { project: "e2e-proj", name: "member-run" },
+  });
+  expect(mmk.ok()).toBeTruthy();
+  await page.goto(`/${orgSlug}/profile`);
+  await expect(page.getByRole("link", { name: "member-run" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "run-a-renamed" })).toHaveCount(
+    0,
+  );
 });

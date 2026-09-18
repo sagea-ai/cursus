@@ -104,9 +104,7 @@ export function RunsTable({
               size="sm"
               onClick={() => setStatus(s)}
             >
-              {s === "ALL"
-                ? "All"
-                : s.charAt(0) + s.slice(1).toLowerCase()}
+              {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
             </Button>
           ),
         )}

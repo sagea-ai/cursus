@@ -16,6 +16,19 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True only for "entity does not exist" errors. Dashboard pages must use
+ * this to decide between notFound() and rethrow: mapping EVERY failure to
+ * 404 (e.g. a transient DB blip) produces mystery 404s on resources that
+ * exist. Real 500s must surface as 500s with server logs.
+ */
+export function isNotFoundError(e: unknown): boolean {
+  if (e instanceof AuthError) return false;
+  if (e instanceof KeyAuthError) return e.status === 404;
+  if (e instanceof ApiError) return e.status === 404;
+  return false;
+}
+
 export function toErrorResponse(e: unknown): Response {
   if (e instanceof ZodError) {
     return Response.json(

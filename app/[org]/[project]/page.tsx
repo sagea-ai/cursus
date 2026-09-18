@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { isNotFoundError } from "@/lib/http";
 import { requirePageSession } from "@/lib/page-auth";
 import { getProjectOverview } from "@/lib/projects";
 
@@ -36,8 +37,9 @@ export default async function ProjectOverviewPage({
   let ov;
   try {
     ov = await getProjectOverview(session, org.slug, projectSlug);
-  } catch {
-    notFound();
+  } catch (e) {
+    if (isNotFoundError(e)) notFound();
+    throw e;
   }
 
   return (

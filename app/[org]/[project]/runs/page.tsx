@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ProjectTabs } from "@/components/project-tabs";
 import { RunsTable, type RunRow } from "@/components/runs-table";
+import { isNotFoundError } from "@/lib/http";
 import { requirePageSession } from "@/lib/page-auth";
 import { listRuns } from "@/lib/runs";
 import type { RunListSort } from "@/lib/validation";
@@ -24,8 +25,9 @@ export default async function RunsPage({
   let data;
   try {
     data = await listRuns(session, projectSlug, { limit: 200, sort });
-  } catch {
-    notFound();
+  } catch (e) {
+    if (isNotFoundError(e)) notFound();
+    throw e;
   }
 
   const rows: RunRow[] = data.runs.map((r) => ({

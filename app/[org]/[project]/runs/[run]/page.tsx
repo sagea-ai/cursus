@@ -8,6 +8,7 @@ import { RunHeaderEditor } from "@/components/run-header-editor";
 import { RunOverview } from "@/components/run-overview";
 import { StatusBadge } from "@/components/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isNotFoundError } from "@/lib/http";
 import { requirePageSession } from "@/lib/page-auth";
 import { getRun } from "@/lib/runs";
 
@@ -21,8 +22,9 @@ export default async function RunDetailPage({
   let detail;
   try {
     detail = await getRun(session, runId);
-  } catch {
-    notFound();
+  } catch (e) {
+    if (isNotFoundError(e)) notFound();
+    throw e;
   }
 
   return (

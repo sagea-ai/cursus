@@ -179,9 +179,10 @@ test("critical journey: bootstrap to restricted member", async ({
   }
 
   // 4c. Groups: admin creates the group via UI; the second invitee is
-  // created via API first so the UI member-add has someone to add. Group
-  // run logged via API; MEMBER (invited later, never added) is the
-  // stranger who must see neither group nor run.
+  // created via API first so the UI member-add has someone to add. A
+  // project is created inside the group via UI; runs inherit its
+  // visibility. MEMBER (invited later, never added) is the stranger who
+  // must see neither group, project, nor run.
   await page.goto(`/${orgSlug}/groups`);
   await page.getByRole("button", { name: "New Group" }).click();
   await page.getByLabel("Name").fill("e2e-group");
@@ -212,14 +213,22 @@ test("critical journey: bootstrap to restricted member", async ({
     page.getByRole("cell", { name: OUTSIDER.email, exact: true }),
   ).toBeVisible();
 
+  // Project created inside the group via UI (group picker in the dialog).
+  await page.goto(`/${orgSlug}/projects`);
+  await page.getByRole("button", { name: "New Project" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("e2e-group-proj");
+  await page.getByLabel("Group (optional)").selectOption("e2e-group");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page.getByText("e2e-group-proj", { exact: true })).toBeVisible();
+
   const grun = await request.post("/api/v1/runs", {
     headers,
-    data: { project: "e2e-proj", name: "group-run", group: "e2e-group" },
+    data: { project: "e2e-group-proj", name: "group-run" },
   });
   expect(grun.ok()).toBeTruthy();
   const groupRunId = ((await grun.json()).run_id as string) ?? "";
   await page.goto(`/${orgSlug}/groups/e2e-group`);
-  await expect(page.getByText("group-run")).toBeVisible();
+  await expect(page.getByText("e2e-group-proj", { exact: true })).toBeVisible();
 
   // Outsider is a member: sees group and run.
   const { cookie: outsiderCookie } = await apiLogin(
@@ -265,9 +274,9 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("link", { name: "run-b" })).toBeVisible();
   await page.getByRole("link", { name: "Name A–Z" }).click();
   await expect(page).toHaveURL(/sort=name_asc/);
-  // Alphabetical across all three runs: group-run, run-a, run-b.
+  // Alphabetical across the project's runs: run-a, run-b.
   const firstRow = page.getByRole("row").nth(1);
-  await expect(firstRow.getByRole("link", { name: "group-run" })).toBeVisible();
+  await expect(firstRow.getByRole("link", { name: "run-a" })).toBeVisible();
   await page.getByRole("link", { name: "run-a" }).click();
   await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
   await page.locator("svg").first().waitFor({ timeout: 15_000 });

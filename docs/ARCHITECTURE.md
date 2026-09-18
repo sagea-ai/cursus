@@ -66,19 +66,20 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
 - Org slug (`Org.slug`) drives `/[org]/…` dashboard URLs — path-based, not
   subdomain, for self-hosters behind arbitrary reverse proxies.
 
-## Groups & run visibility
+## Groups & project visibility
 
-- A group is an org subset with members; runs optionally belong to one
-  group (`Run.groupId`, NULL = org-wide). One rule, enforced in
-  `runVisibilityFilter` (`lib/groups.ts`) on EVERY run read path (list,
-  detail, metrics, export, artifacts, project stats): super admins see all;
-  members see org-wide runs plus their groups' runs. Missing and hidden
-  rows are the same 404 — no oracle for probing slugs or ids.
-- Writes are stricter than reads: creating/logging/finishing a grouped run
-  (and moving runs between groups) requires group membership or admin
-  (`assertRunWritable`). Org-wide runs stay writable by every member.
-- Deleting a group dissolves the boundary only: runs ungroup to org-wide
-  (SetNull), member links vanish, history is never deleted.
+- A group is an org subset that owns projects; runs inherit their
+  project's visibility. A project with no group is org-wide public.
+- One rule, enforced in `runVisibilityFilter` / `projectVisibilityFilter`
+  (`lib/groups.ts`) on EVERY scoped read path (projects, runs, metrics,
+  export, artifacts, stats): super admins see all; members see org-wide
+  projects plus their groups' projects. Missing and hidden rows are the
+  same 404 — no oracle for probing slugs or ids.
+- Writes match reads: creating projects or logging runs inside a group
+  requires membership (admins bypass); moving projects between groups is
+  super-admin-only. Org-wide projects stay writable by every member.
+- Deleting a group dissolves the boundary only: projects ungroup to
+  org-wide (SetNull), member links vanish, history is never deleted.
 
 ## Pinned versions (M0, re-check each milestone)
 

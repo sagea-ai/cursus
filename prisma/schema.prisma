@@ -62,6 +62,12 @@ model User {
   email        String   @unique
   // Display name from onboarding; "" for rows predating the field.
   name         String   @default("")
+  // Public profile fields (editable by the owner; email/name are not).
+  bio          String   @default("")
+  location     String   @default("")
+  website      String   @default("")
+  twitter      String   @default("")
+  github       String   @default("")
   passwordHash String
   role         Role     @default(MEMBER)
   createdAt    DateTime  @default(now())

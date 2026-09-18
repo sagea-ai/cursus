@@ -20,6 +20,12 @@ if (!process.env["SESSION_SECRET"]) {
   process.env["SESSION_SECRET"] = "test-secret-for-api-tests-only";
 }
 
+// The bootstrap email gate must be deterministic in-suite: tests set a
+// placeholder unless the environment provides the real one (E2E/CI do).
+if (!process.env["BOOTSTRAP_ADMIN_EMAIL"]) {
+  process.env["BOOTSTRAP_ADMIN_EMAIL"] = "bootstrap-owner@cursus.test";
+}
+
 export function testEmail(tag: string): string {
   const rand = Math.random().toString(36).slice(2, 10);
   return `${tag}-${rand}@cursus.test`;

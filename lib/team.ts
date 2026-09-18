@@ -27,6 +27,7 @@ import type {
 export interface PublicUser {
   id: string;
   email: string;
+  name: string;
   role: Session["role"];
   createdAt: Date;
 }
@@ -34,10 +35,17 @@ export interface PublicUser {
 function toPublicUser(u: {
   id: string;
   email: string;
+  name: string;
   role: Session["role"];
   createdAt: Date;
 }): PublicUser {
-  return { id: u.id, email: u.email, role: u.role, createdAt: u.createdAt };
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    createdAt: u.createdAt,
+  };
 }
 
 export interface OrgRef {
@@ -65,29 +73,71 @@ async function uniqueOrgSlug(base: string): Promise<string> {
   throw new ApiError(409, "could not allocate an org slug, retry");
 }
 
-/** First-boot provisioning: allowed ONLY when no users exist yet (§5.1). */
+/** First-boot provisioning (docs/prd-onboarding.md): gated, one-time.
+ * Checks run in an order that keeps every refusal deterministic: flag →
+ * env configured → email match → empty DB. In particular the email gate
+ * precedes the users-exist check, so a wrong email is always 403 even on
+ * a live instance (and the expected address is never echoed).
+ */
 export async function bootstrapOrg(input: BootstrapInput): Promise<{
   org: { id: string; slug: string; name: string };
   user: PublicUser;
 }> {
+  const settings = await db.globalSettings.upsert({
+    where: { id: "global" },
+    update: {},
+    create: { id: "global" },
+  });
+  if (settings.onboardingDisabled) {
+    throw new ApiError(410, "onboarding is permanently disabled");
+  }
+  const allowed = process.env["BOOTSTRAP_ADMIN_EMAIL"]?.trim().toLowerCase();
+  if (!allowed) {
+    throw new ApiError(
+      500,
+      "onboarding is not configured (BOOTSTRAP_ADMIN_EMAIL is not set)",
+    );
+  }
+  if (input.email.trim().toLowerCase() !== allowed) {
+    throw new AuthError(403, "this email is not authorized for onboarding");
+  }
   const count = await db.user.count();
   if (count > 0) throw new ApiError(403, "already bootstrapped");
   const slug = await uniqueOrgSlug(input.orgName);
-  const org = await db.org.create({
-    data: { name: input.orgName, slug },
-  });
-  const user = await db.user.create({
-    data: {
-      orgId: org.id,
-      email: input.email,
-      passwordHash: await hashPassword(input.password),
-      role: "SUPER_ADMIN",
-    },
-  });
-  return {
-    org: { id: org.id, slug: org.slug, name: org.name },
-    user: toPublicUser(user),
-  };
+  try {
+    const org = await db.org.create({
+      data: { name: input.orgName, slug },
+    });
+    const user = await db.user.create({
+      data: {
+        orgId: org.id,
+        email: input.email,
+        name: input.name,
+        passwordHash: await hashPassword(input.password),
+        role: "SUPER_ADMIN",
+      },
+    });
+    // Close onboarding in the same flow that creates the first account.
+    await db.globalSettings.update({
+      where: { id: "global" },
+      data: { onboardingDisabled: true },
+    });
+    return {
+      org: { id: org.id, slug: org.slug, name: org.name },
+      user: toPublicUser(user),
+    };
+  } catch (e) {
+    // Double-submit race: the loser's unique-email insert lands here.
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code: string }).code === "P2002"
+    ) {
+      throw new ApiError(403, "already bootstrapped");
+    }
+    throw e;
+  }
 }
 
 export async function loginUser(
@@ -172,7 +222,7 @@ export async function listMembers(
   const users = await db.user.findMany({
     where: { orgId: session.orgId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, role: true, createdAt: true },
+    select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
   return users.map(toPublicUser);
 }

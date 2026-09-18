@@ -76,11 +76,16 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const bootstrapSchema = z.object({
   orgName: z.string().min(1).max(128),
+  name: z.string().min(1).max(128),
   email: z.string().email().max(320),
   password: z.string().min(8).max(256),
 });
 
 export type BootstrapInput = z.infer<typeof bootstrapSchema>;
+
+export const onboardingSettingsSchema = z.object({
+  disabled: z.boolean(),
+});
 
 export const acceptInviteSchema = z.object({
   token: z.string().min(1),

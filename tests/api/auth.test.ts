@@ -19,10 +19,11 @@ import {
 
 // NOTE on bootstrap: the positive path (empty users table → 201) cannot run
 // in this shared suite — parallel workers always have users present. It is
-// covered by the Playwright bootstrap journey on a fresh database (e2e/).
-// This file pins the permanent post-bootstrap behavior: 403, always.
+// covered by the Playwright onboarding journey on a fresh database (e2e/).
+// This file pins every refusal: disabled → 410, wrong email → 403 (checked
+// before the users-exist check, so deterministic here), users exist → 403.
 describe.skipIf(!apiTestsEnabled)("auth routes", () => {
-  it("bootstrap is 403 once any user exists", async () => {
+  it("bootstrap refuses a non-bootstrap email without echoing it", async () => {
     const org = await createTestOrg("auth");
     try {
       const res = await bootstrapPOST(
@@ -30,12 +31,37 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
           method: "POST",
           body: {
             orgName: "another",
-            email: testEmail("bootstrap"),
+            name: "Intruder",
+            email: testEmail("intruder"),
             password: "password-1",
           },
         }),
       );
       expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error).toBe("this email is not authorized for onboarding");
+      expect(JSON.stringify(body)).not.toContain("bootstrap-owner");
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("bootstrap is 403 once any user exists (right email)", async () => {
+    const org = await createTestOrg("auth");
+    try {
+      const res = await bootstrapPOST(
+        apiRequest("/api/v1/auth/bootstrap", {
+          method: "POST",
+          body: {
+            orgName: "another",
+            name: "Owner",
+            email: process.env["BOOTSTRAP_ADMIN_EMAIL"]!,
+            password: "password-1",
+          },
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect((await res.json()).error).toBe("already bootstrapped");
     } finally {
       await org.cleanup();
     }

@@ -16,6 +16,14 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // DB-backed files share one database and some state is deployment-global
+    // (e.g. the onboarding flag), so the API suite runs files serially.
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        singleFork: process.env["RUN_API_TESTS"] === "1",
+      },
+    },
     // API + crypto tests run in node: jose validates keys with
     // `instanceof Uint8Array` and the jsdom TextEncoder realm breaks it.
     environmentMatchGlobs: [

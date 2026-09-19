@@ -47,23 +47,25 @@ function getRandomGreeting(part: GreetingPart) {
 }
 
 // Time-of-day greeting in the viewer's timezone.
-// The selected greeting persists for the browser session. Lazy state
-// initializers (client-guarded) replace the mount-effect pattern: the
-// server still renders the neutral fallback, the client picks on first
-// render, with no synchronous setState inside an effect.
-function initGreeting(): string {
-  if (typeof window === "undefined") return "Welcome back";
+// The selected greeting persists for the browser session.
+//
+// Hydration-safe by construction: the server snapshot is always the
+// neutral fallback (so SSR HTML matches the first client render), and
+// the client snapshot resolves once at module load. No setState in an
+// effect, no server/client branch during render.
+const FALLBACK_GREETING = "Hello there";
+const STORAGE_KEY = "dashboard-greeting";
+
+function pickGreeting(): string {
   const part = getGreetingPart(new Date().getHours());
-  const storageKey = "dashboard-greeting";
-  const stored = sessionStorage.getItem(storageKey);
+  const stored = sessionStorage.getItem(STORAGE_KEY);
   if (stored) return stored;
   const picked = getRandomGreeting(part);
-  sessionStorage.setItem(storageKey, picked);
+  sessionStorage.setItem(STORAGE_KEY, picked);
   return picked;
 }
 
-function initToday(): string {
-  if (typeof window === "undefined") return "";
+function pickToday(): string {
   return new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -71,9 +73,29 @@ function initToday(): string {
   });
 }
 
+// Module state is per-environment: the server copy stays null (no window
+// access at module scope on the server), the client copy resolves once
+// when the chunk loads, before first render.
+const clientGreeting: string | null =
+  typeof window === "undefined" ? null : pickGreeting();
+const clientToday: string | null =
+  typeof window === "undefined" ? null : pickToday();
+
+function subscribeGreeting() {
+  return () => { };
+}
+
 export function DashboardGreeting({ name }: { name: string }) {
-  const [greeting] = React.useState(initGreeting);
-  const [today] = React.useState(initToday);
+  const greeting = React.useSyncExternalStore(
+    subscribeGreeting,
+    () => clientGreeting ?? FALLBACK_GREETING,
+    () => FALLBACK_GREETING,
+  );
+  const today = React.useSyncExternalStore(
+    subscribeGreeting,
+    () => clientToday ?? "",
+    () => "",
+  );
 
   return (
     <div>

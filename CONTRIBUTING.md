@@ -4,7 +4,7 @@ Thanks for considering a contribution. This project holds external
 contributions to the same bar as internal ones — the bar is written down so
 nobody has to guess.
 
-## The bar (§10)
+## The bar
 
 - **Every feature ships with tests.** New code without a corresponding test is
   a review blocker. Web: Vitest (+ React Testing Library for components,
@@ -24,9 +24,10 @@ nobody has to guess.
   → 403 is a named test case, not an assumption).
 - **No N+1 at the API layer**; new list views must read denormalized fields
   (e.g. `Run.summary`), never join the `Metric` table per row.
-- **Check non-goals first** (README): sweeps, registries,
-  per-project ACLs, alerting, etc. are out for v1. Changing non-goals
-  needs maintainer agreement in the PR/issue, not just code.
+- **Check non-goals first** (README): model registry with lineage, Bayesian
+  sweeps, custom roles, report builder, LLM tracing, SCIM, and billing are
+  out. Changing non-goals needs maintainer agreement in the PR/issue, not
+  just code.
 - **Conventional Commits** (`feat:` / `fix:` / `chore:`) for changelog hygiene.
 
 ## Running the suites
@@ -40,6 +41,20 @@ cd sdk && ruff check . && ruff format --check . && pytest -q
 
 API/E2E tests need a throwaway Postgres (`docker compose up -d db` plus a
 scratch database + `npx prisma migrate deploy`). Never point them at dev/prod.
+
+## Cutting a release
+
+Releases ship three artifacts (PyPI package, GHCR image, changelog) from
+one GitHub release:
+
+1. Move `CHANGELOG.md` entries from Unreleased to a new version section.
+2. Bump versions together: `package.json` and `sdk/pyproject.toml`.
+3. Commit, push to main, tag `vX.Y.Z`, push the tag.
+4. Cut the GitHub release from the tag — the publish workflows build from
+   there (PyPI sdist+wheel, GHCR `:vX.Y.Z` plus `latest` for stable).
+
+Pre-releases (`vX.Y.Z-rc.N`) publish versioned artifacts only, never
+`latest`. Never retag: cut a new release instead.
 
 ## Good first issues
 

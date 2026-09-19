@@ -19,7 +19,7 @@ dependencies = ["requests>=2.31"]
 dev = ["pytest>=8", "ruff>=0.4"]
 
 [project.urls]
-Homepage = "https://github.com/sagea/cursus"
+Homepage = "https://github.com/sagea-ai/cursus"
 
 [tool.setuptools.packages.find]
 where = ["."]

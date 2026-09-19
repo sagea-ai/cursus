@@ -10,7 +10,6 @@ import {
 } from "@/lib/password";
 import type { Session } from "@/lib/auth";
 
-
 // SSO via OIDC (one provider protocol), bridged into the existing cookie
 // model: after the callback verifies the ID token, the account gets a plain
 // HS256 session like any password login — every downstream guard (live

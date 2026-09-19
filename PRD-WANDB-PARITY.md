@@ -153,12 +153,18 @@ transactionally on claim). Random is stateless.
 ### SDK
 
 ```python
-sweep = cursus.create_sweep(project="demo", method="random",
-                            space={"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"}})
-while (trial := cursus.next_trial(sweep)) is not None:
-    run = cursus.init(project="demo", config=trial.config,
-                      name=f"sweep-{trial.id}", group=trial.group)
-    train(trial.config)
+sweep = cursus.create_sweep(
+    "demo",
+    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"}},
+)
+while (trial := cursus.next_trial(sweep["id"])) is not None:
+    run = cursus.init(
+        project="demo",
+        config=trial["config"],
+        name=f"sweep-{trial['trial']}",
+        sweep_id=trial["sweep_id"],
+    )
+    train(trial["config"])
     cursus.finish()
 ```
 

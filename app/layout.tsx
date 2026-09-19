@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   description: "Minimal, self-hostable experiment tracking for ML teams.",
 };
 
+// Every page reads Postgres and/or cookies at render time, so there is
+// nothing to prerender — and builds must not need a database (the Docker
+// image builds with no DB reachable). Force dynamic rendering app-wide.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

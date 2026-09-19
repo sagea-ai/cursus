@@ -4,6 +4,7 @@ import { KeysManager, type KeyRow } from "@/components/keys-manager";
 import { CodeBlock } from "@/components/code-block";
 import { ProjectGroupMove } from "@/components/project-group-move";
 import { ProjectRename } from "@/components/project-rename";
+import { ProjectRetention } from "@/components/project-retention";
 import { ProjectTabs } from "@/components/project-tabs";
 import {
   Card,
@@ -68,6 +69,13 @@ export default async function ProjectOverviewPage({
           initialName={ov.project.name}
           canEdit={session.role !== "VIEWER"}
         />
+        {ov.project.archivedAt && (
+          <p className="mt-1">
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              Archived — read-only
+            </span>
+          </p>
+        )}
       </div>
       <ProjectTabs orgSlug={org.slug} projectSlug={ov.project.slug} />
 
@@ -181,6 +189,20 @@ export default async function ProjectOverviewPage({
               </CardContent>
             </Card>
           </div>
+          {session.role === "SUPER_ADMIN" && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <ProjectRetention
+                orgSlug={org.slug}
+                projectSlug={ov.project.slug}
+                initialTtlDays={ov.project.metricsTtlDays}
+                initialArchivedAt={
+                  ov.project.archivedAt
+                    ? ov.project.archivedAt.toISOString()
+                    : null
+                }
+              />
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="api-keys">
           <div className="flex flex-col gap-2">

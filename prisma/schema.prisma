@@ -114,8 +114,12 @@ model Project {
   // member, the pre-groups behavior). Non-null = visible only to group
   // members and super admins; runs inherit their project's visibility.
   groupId   String?
-  group     Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
+  group     Group?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  // Retention: metrics older than metricsTtlDays may be purged (runs,
+  // summaries, media survive). archivedAt freezes all content writes.
+  metricsTtlDays Int?
+  archivedAt DateTime?
+  createdAt DateTime   @default(now())
   runs      Run[]
   artifacts Artifact[]
   webhooks  Webhook[]

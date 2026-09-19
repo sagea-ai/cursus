@@ -107,6 +107,14 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
 - Deleting a group dissolves the boundary only: projects ungroup to
   org-wide (SetNull), member links vanish, history is never deleted.
 
+## Retention & archival
+
+- Per-project metric TTL (`metricsTtlDays`, null = forever) plus archival
+  (`archivedAt` freezes every content write with 409 until unarchived).
+- No cron or job queue: purges are explicit admin actions, dry-run first,
+  executed as batched 10k BigInt-PK deletes. Runs, summaries, and media
+  survive — charts show the gap honestly.
+
 ## Pinned versions (M0, re-check each milestone)
 
 - Next.js 16.3.5 (App Router), React 19.2.8, TypeScript 5.9.3

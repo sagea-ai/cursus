@@ -1,6 +1,10 @@
 import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { canWriteGroup, projectVisibilityFilter } from "@/lib/groups";
+import {
+  assertProjectActive,
+  canWriteGroup,
+  projectVisibilityFilter,
+} from "@/lib/groups";
 import { ApiError } from "@/lib/http";
 import type { CreateSweepInput, SweepSpace } from "@/lib/validation";
 
@@ -173,6 +177,7 @@ export async function createSweep(
   if (project.groupId && !(await canWriteGroup(session, project.groupId))) {
     throw new ApiError(403, "not a member of this project's group");
   }
+  await assertProjectActive(project.id);
   validateSpace(input.method, input.space);
   const created = await db.sweep.create({
     data: {

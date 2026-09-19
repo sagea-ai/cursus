@@ -168,6 +168,8 @@ export interface ProjectOverview {
     name: string;
     createdAt: Date;
     group: { slug: string; name: string } | null;
+    metricsTtlDays: number | null;
+    archivedAt: Date | null;
   };
   /** v1 has no per-project visibility: everything is org-visible. */
   visibility: "Team";
@@ -199,6 +201,8 @@ export async function getProjectOverview(
       slug: true,
       name: true,
       createdAt: true,
+      metricsTtlDays: true,
+      archivedAt: true,
       group: { select: { slug: true, name: true } },
     },
   });
@@ -262,6 +266,8 @@ export async function getProjectOverview(
       name: project.name,
       createdAt: project.createdAt,
       group: project.group,
+      metricsTtlDays: project.metricsTtlDays,
+      archivedAt: project.archivedAt,
     },
     visibility: "Team",
     lastActiveAt: recency._max.startedAt,

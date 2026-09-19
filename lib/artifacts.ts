@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
-import { runVisibilityFilter, type GroupAuth } from "@/lib/groups";
+import {
+  assertProjectActive,
+  runVisibilityFilter,
+  type GroupAuth,
+} from "@/lib/groups";
 import { slugify } from "@/lib/slug";
 import type { ArtifactUploadFields } from "@/lib/validation";
 
@@ -88,6 +92,7 @@ export async function createArtifactVersion(
     projectId = project.id;
   }
   if (!projectId) throw new ApiError(400, "project or run_id is required");
+  await assertProjectActive(projectId);
 
   const seen = new Set<string>();
   const files = uploads.map((u) => {

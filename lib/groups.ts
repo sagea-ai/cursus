@@ -42,6 +42,20 @@ export function projectVisibilityFilter(auth: GroupAuth) {
   };
 }
 
+/** Archived projects are read-only: content writes 409 until unarchived.
+ * Call after resolving the project in every content-write path (runs,
+ * media via assertRunWritable, artifacts, sweeps, webhooks). Metadata
+ * writes (rename, TTL, archive itself) stay allowed. */
+export async function assertProjectActive(projectId: string): Promise<void> {
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+    select: { archivedAt: true },
+  });
+  if (project?.archivedAt) {
+    throw new ApiError(409, "project is archived — unarchive to write");
+  }
+}
+
 /** True when the caller may LOG to this group (member of it, or admin). */
 export async function canWriteGroup(
   auth: GroupAuth,
@@ -99,9 +113,15 @@ export async function assertRunWritable(
 ): Promise<{ id: string }> {
   const run = await db.run.findFirst({
     where: { id: runId, project: { orgId: auth.orgId } },
-    select: { id: true, project: { select: { groupId: true } } },
+    select: {
+      id: true,
+      project: { select: { groupId: true, archivedAt: true } },
+    },
   });
   if (!run) throw new ApiError(404, "run not found");
+  if (run.project.archivedAt) {
+    throw new ApiError(409, "project is archived — unarchive to write");
+  }
   if (
     run.project.groupId &&
     !(await canWriteGroup(auth, run.project.groupId))

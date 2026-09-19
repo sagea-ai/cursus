@@ -4,7 +4,11 @@ import { isIP } from "node:net";
 
 import { requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { canWriteGroup, projectVisibilityFilter } from "@/lib/groups";
+import {
+  assertProjectActive,
+  canWriteGroup,
+  projectVisibilityFilter,
+} from "@/lib/groups";
 import { ApiError } from "@/lib/http";
 import type { CreateWebhookInput } from "@/lib/validation";
 
@@ -106,6 +110,7 @@ export async function createWebhook(
 ): Promise<{ webhook: WebhookRow; secret: string }> {
   requireRole(session, "MEMBER");
   const project = await assertProjectWritable(session, projectSlug);
+  await assertProjectActive(project.id);
   const count = await db.webhook.count({ where: { projectId: project.id } });
   if (count >= WEBHOOK_MAX_PER_PROJECT) {
     throw new ApiError(409, "project already has 10 webhooks");

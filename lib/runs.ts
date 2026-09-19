@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { downsample } from "@/lib/downsampling";
 import {
+  assertProjectActive,
   assertRunVisible,
   assertRunWritable,
   canWriteGroup,
@@ -135,6 +136,7 @@ export async function createRun(
     }
   }
   const name = input.name ?? `run-${shortId()}`;
+  await assertProjectActive(project.id);
   if (input.sweep_id !== undefined) {
     const { assertSweepLinkable } = await import("@/lib/sweeps");
     await assertSweepLinkable(auth.orgId, project.id, input.sweep_id);

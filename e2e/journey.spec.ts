@@ -437,6 +437,32 @@ test("critical journey: bootstrap to restricted member", async ({
     0,
   );
 
+  // 6e. Retention: archive a throwaway project, badge shows, writes 409,
+  // unarchive restores.
+  const tmpRun = await request.post("/api/v1/runs", {
+    headers: { Cookie: adminCookie },
+    data: { project: "e2e-ret", name: "ret-run" },
+  });
+  expect(tmpRun.ok()).toBeTruthy();
+  const tmpId = ((await tmpRun.json()) as { run_id: string }).run_id;
+  const arch = await request.post(
+    `/api/v1/orgs/${orgSlug}/projects/e2e-ret/archive`,
+    { headers: { Cookie: adminCookie }, data: { archived: true } },
+  );
+  expect(arch.ok()).toBeTruthy();
+  await page.goto(`/${orgSlug}/e2e-ret`);
+  await expect(page.getByText("Archived — read-only")).toBeVisible();
+  const blockedLog = await request.post(`/api/v1/runs/${tmpId}/log`, {
+    headers: { Cookie: adminCookie },
+    data: { points: [{ key: "k", step: 0, value: 1 }] },
+  });
+  expect(blockedLog.status()).toBe(409);
+  const unarch = await request.post(
+    `/api/v1/orgs/${orgSlug}/projects/e2e-ret/archive`,
+    { headers: { Cookie: adminCookie }, data: { archived: false } },
+  );
+  expect(unarch.ok()).toBeTruthy();
+
   // 7. Invite a member; accept via link; land in dashboard.
   await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();

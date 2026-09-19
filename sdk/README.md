@@ -14,10 +14,18 @@ Runnable scripts: [`examples/`](./examples/) (need a live server + key).
 
 ## Basic training loop
 
+Credentials come from the environment above, or explicitly per call
+(handy for multi-server scripts — never commit real keys to git):
+
 ```python
 import sagea_cursus as cursus
 
-run = cursus.init(project="demo", config={"lr": 1e-4, "arch": "mlp"})
+run = cursus.init(
+    project="demo",
+    config={"lr": 1e-4, "arch": "mlp"},
+    api_key="cursus_...",  # or CURSUS_API_KEY
+    base_url="https://cursus.example.com",  # or CURSUS_BASE_URL
+)
 try:
     for step in range(100):
         loss = 1.0 / (step + 1)

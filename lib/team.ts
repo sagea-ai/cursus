@@ -5,7 +5,7 @@ import {
   hashPassword,
   INVITE_PENDING_HASH,
   isInvitePendingHash,
-  isUsablePasswordHash,
+  isSessionAliveHash,
   lockedHash,
   verifyPassword,
 } from "@/lib/password";
@@ -40,7 +40,7 @@ export interface PublicUser {
  * it can't drift from what the auth guards actually enforce. */
 export function statusOf(passwordHash: string): MemberStatus {
   if (isInvitePendingHash(passwordHash)) return "pending";
-  if (!isUsablePasswordHash(passwordHash)) return "inactive";
+  if (!isSessionAliveHash(passwordHash)) return "inactive";
   return "active";
 }
 

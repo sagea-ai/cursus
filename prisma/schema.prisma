@@ -70,7 +70,10 @@ model User {
   website      String   @default("")
   twitter      String   @default("")
   github       String   @default("")
-  passwordHash String
+  passwordHash     String
+  // OIDC subject (issuer|sub) for SSO-linked accounts. Null for password
+  // accounts. Unique when set — one SSO identity maps to one user.
+  ssoSubject     String?        @unique
   role         Role     @default(MEMBER)
   createdAt    DateTime  @default(now())
   apiKeys      ApiKey[]

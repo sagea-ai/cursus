@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { Session } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isUsablePasswordHash } from "@/lib/password";
+import { isSessionAliveHash } from "@/lib/password";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 // Server-side page guard: every dashboard page calls this, never trusts a
@@ -34,10 +34,11 @@ export async function requirePageSession(orgSlug?: string): Promise<{
     },
   });
   if (!user) redirect("/login");
-  // Pending/deactivated accounts hold no usable password: bounce them to
+  // Pending/deactivated accounts hold no live session: bounce them to
   // login (loginUser rejects sentinels), matching getLiveSession, so a
   // revoked cookie stops rendering pages instead of a shell of 401s.
-  if (!isUsablePasswordHash(user.passwordHash)) redirect("/login");
+  if (!isSessionAliveHash(user.passwordHash)) redirect("/login");
+  if (!isSessionAliveHash(user.passwordHash)) redirect("/login");
   const session: Session = {
     userId: user.id,
     orgId: user.orgId,

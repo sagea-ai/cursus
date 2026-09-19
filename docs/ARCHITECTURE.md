@@ -67,6 +67,12 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
   Viewers read everything members can see but write nothing: every write
   service gates MEMBER minimum, and viewer-owned API keys are read-scoped
   (ingestion rejects them) while working for reads.
+- SSO via OIDC (env-gated, off by default): authorization-code flow with
+  state+nonce cookies, ID-token verification over the issuer JWKS, then a
+  plain cookie session — deactivation, roles, and statuses apply
+  unchanged. JIT-provisions MEMBERs (SSO-only password sentinel: no
+  password login, fully alive sessions); pending invites activate with the
+  token's display name; deactivated rows stay dead over SSO.
 - Keys are never valid for team-management endpoints (session-only by design;
   pinned by an explicit test).
 - First boot: `POST /api/v1/auth/bootstrap` provisions the org + first super

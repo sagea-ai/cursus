@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -9,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 // Split-screen login modeled on the SAGEA platform login.
-export function LoginForm() {
+export function LoginForm({
+  ssoEnabled = false,
+  ssoError = null,
+}: {
+  ssoEnabled?: boolean;
+  ssoError?: string | null;
+}) {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -69,6 +76,26 @@ export function LoginForm() {
           </div>
 
           <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
+            {ssoError && (
+              <p role="alert" className="text-sm text-red-600">
+                SSO sign-in failed — try again or use your password.
+              </p>
+            )}
+            {ssoEnabled && (
+              <>
+                <Link
+                  href="/api/v1/auth/oidc/start"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md bg-secondary px-4 text-sm font-medium text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/80"
+                >
+                  Sign in with SSO
+                </Link>
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-neutral-200" />
+                  <span className="text-xs text-neutral-500">or</span>
+                  <span className="h-px flex-1 bg-neutral-200" />
+                </div>
+              </>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email address</Label>
               <input

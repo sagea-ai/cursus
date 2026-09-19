@@ -4,11 +4,16 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
+import { isOidcEnabled } from "@/lib/oidc";
 import { isOnboardingOpen } from "@/lib/settings";
 
 // Fresh deployment → onboarding (login can never succeed with zero users).
 // Logged-in users skip straight to the dashboard.
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   if (await isOnboardingOpen()) redirect("/onboarding");
   const jar = await cookies();
   const claimed = await verifySessionToken(
@@ -21,5 +26,6 @@ export default async function LoginPage() {
     });
     if (user) redirect(`/${user.org.slug}/dashboard`);
   }
-  return <LoginForm />;
+  const { error } = await searchParams;
+  return <LoginForm ssoEnabled={isOidcEnabled()} ssoError={error ?? null} />;
 }

@@ -5,6 +5,13 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-19
+
+Patch: Connect card with the deployment base URL on API Keys, quickstart
+snippets with the real URL baked in, full SDK usage snippets plus
+runnable `sdk/examples/`, completed `docs/sdk.md` reference. No behavior
+changes to the API or SDK surface.
+
 ## [0.1.0] - 2026-09-19
 
 First open-source release: self-hostable experiment tracking (Next.js +
@@ -44,5 +51,6 @@ Postgres + S3-compatible storage) with a `requests`-only Python SDK.
 - Self-host via Docker Compose (Postgres + MinIO + app + one-shot
   migrations) with bring-your-own S3/R2/GCS credentials.
 
-[Unreleased]: https://github.com/sagea-ai/cursus/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sagea-ai/cursus/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/sagea-ai/cursus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sagea-ai/cursus/releases/tag/v0.1.0

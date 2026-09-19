@@ -8,6 +8,7 @@ import {
   FiChevronsLeft,
   FiChevronsRight,
   FiFolder,
+  FiHome,
   FiKey,
   FiLayers,
   FiSettings,
@@ -26,6 +27,10 @@ const SECTIONS: {
     admin?: boolean;
   }[];
 }[] = [
+  {
+    label: "Home",
+    items: [{ href: "dashboard", label: "Dashboard", icon: FiHome }],
+  },
   {
     label: "Experiments",
     items: [

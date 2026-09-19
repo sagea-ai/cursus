@@ -7,7 +7,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { isOnboardingOpen } from "@/lib/settings";
 
 // Fresh deployment → onboarding (login can never succeed with zero users).
-// Logged-in users skip straight to their projects.
+// Logged-in users skip straight to the dashboard.
 export default async function LoginPage() {
   if (await isOnboardingOpen()) redirect("/onboarding");
   const jar = await cookies();
@@ -19,7 +19,7 @@ export default async function LoginPage() {
       where: { id: claimed.userId },
       include: { org: { select: { slug: true } } },
     });
-    if (user) redirect(`/${user.org.slug}/projects`);
+    if (user) redirect(`/${user.org.slug}/dashboard`);
   }
   return <LoginForm />;
 }

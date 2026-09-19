@@ -51,7 +51,7 @@ export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {
       setError(body.error ?? "Onboarding failed");
       return;
     }
-    router.push(`/${body.org.slug}/projects`);
+    router.push(`/${body.org.slug}/dashboard`);
     router.refresh();
   }
 

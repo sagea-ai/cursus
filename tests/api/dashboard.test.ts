@@ -73,10 +73,14 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
         { params: Promise.resolve({ slug: "g" }) },
       );
       await createProjectPOST(
-        await authedRequest(`/api/v1/orgs/${org.orgSlug}/projects`, org.member, {
-          method: "POST",
-          body: { name: "Grouped", group: "g" },
-        }),
+        await authedRequest(
+          `/api/v1/orgs/${org.orgSlug}/projects`,
+          org.member,
+          {
+            method: "POST",
+            body: { name: "Grouped", group: "g" },
+          },
+        ),
         { params: Promise.resolve({ orgSlug: org.orgSlug }) },
       );
       // Org-wide finished run + grouped running run, both by member.
@@ -110,9 +114,7 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
       expect(member.projectCount).toBe(2);
       expect(member.groupCount).toBe(1);
       expect(member.totalComputeMs).toBeGreaterThanOrEqual(0);
-      expect(
-        member.activity.reduce((a, d) => a + d.count, 0),
-      ).toBe(2);
+      expect(member.activity.reduce((a, d) => a + d.count, 0)).toBe(2);
       expect(member.recentRuns).toHaveLength(2);
       expect(member.pendingInvites).toBe(0);
 
@@ -122,9 +124,7 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
       expect(stranger.projectCount).toBe(1);
       expect(stranger.groupCount).toBe(0);
       expect(stranger.recentRuns).toHaveLength(1);
-      expect(
-        stranger.activity.reduce((a, d) => a + d.count, 0),
-      ).toBe(1);
+      expect(stranger.activity.reduce((a, d) => a + d.count, 0)).toBe(1);
 
       const admin = await getDashboardStats(org.admin);
       expect(admin.totalRuns).toBe(2);
@@ -148,9 +148,7 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
         { params: Promise.resolve({ runId: crashable }) },
       );
       const afterMember = await getDashboardStats(org.member);
-      expect(
-        afterMember.crashedWeek.map((r) => r.name),
-      ).toContain("doomed");
+      expect(afterMember.crashedWeek.map((r) => r.name)).toContain("doomed");
       const afterStranger = await getDashboardStats(org.stranger);
       expect(afterStranger.crashedWeek).toHaveLength(0);
     } finally {

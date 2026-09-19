@@ -36,7 +36,7 @@ export function AcceptForm({ token }: { token: string }) {
       setError(body.error ?? "Could not accept invite");
       return;
     }
-    router.push(`/${body.org.slug}/projects`);
+    router.push(`/${body.org.slug}/dashboard`);
     router.refresh();
   }
 

@@ -83,7 +83,7 @@ test("critical journey: bootstrap to restricted member", async ({
   );
   await page.getByLabel("Confirm password").fill(ADMIN.password);
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await expect(page).toHaveURL(/\/[^/]+\/projects/);
+  await expect(page).toHaveURL(/\/[^/]+\/dashboard/);
   const orgSlug = page.url().split("/").slice(-2, -1)[0]!;
 
   // Onboarding is now permanently closed: an anonymous revisit lands on
@@ -92,15 +92,16 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.goto("/onboarding");
   await expect(page).toHaveURL("/login");
 
-  // 2. Login via UI → empty projects with the SDK snippet.
+  // 2. Login via UI → dashboard with getting-started (fresh org).
   await page.goto("/login");
   await page.getByLabel("Email address").fill(ADMIN.email);
   await page.getByLabel("Password").fill(ADMIN.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(`/${orgSlug}/projects`);
-  await expect(page.getByText("No projects yet")).toBeVisible();
+  await expect(page).toHaveURL(`/${orgSlug}/dashboard`);
+  await expect(page.getByText("Set up your first run")).toBeVisible();
 
   // 3. Create a project via UI.
+  await page.goto(`/${orgSlug}/projects`);
   await page.getByRole("button", { name: "New Project" }).click();
   await page.getByLabel("Name").fill("e2e-proj");
   await page.getByRole("button", { name: "Create project" }).click();
@@ -286,6 +287,13 @@ test("critical journey: bootstrap to restricted member", async ({
   // Alphabetical across the project's runs: run-a, run-b.
   const firstRow = page.getByRole("row").nth(1);
   await expect(firstRow.getByRole("link", { name: "run-a" })).toBeVisible();
+
+  // Dashboard reflects the logged runs (admin scope).
+  await page.goto(`/${orgSlug}/dashboard`);
+  await expect(page.getByText("Recent runs")).toBeVisible();
+  await expect(page.getByRole("link", { name: "run-a" })).toBeVisible();
+
+  await page.goto(`/${orgSlug}/e2e-proj/runs?sort=name_asc`);
   await page.getByRole("link", { name: "run-a" }).click();
   await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
   await page.locator("svg").first().waitFor({ timeout: 15_000 });
@@ -332,7 +340,7 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByLabel("Choose a password").fill(MEMBER.password);
   await page.getByLabel("Confirm password").fill(MEMBER.password);
   await page.getByRole("button", { name: "Set password and join" }).click();
-  await expect(page).toHaveURL(`/${orgSlug}/projects`);
+  await expect(page).toHaveURL(`/${orgSlug}/dashboard`);
 
   // 8. Restricted permissions: no invite UI, no row actions, own keys only.
   // MEMBER was never added to e2e-group: group list is empty for them and

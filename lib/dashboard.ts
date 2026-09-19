@@ -1,9 +1,6 @@
 import { requireAuth, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  projectVisibilityFilter,
-  runVisibilityFilter,
-} from "@/lib/groups";
+import { projectVisibilityFilter, runVisibilityFilter } from "@/lib/groups";
 import { INVITE_PENDING_HASH } from "@/lib/password";
 
 // Dashboard aggregates (docs/prd-dashboard.md §6). Every number derives

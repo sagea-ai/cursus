@@ -31,7 +31,7 @@ export function LoginForm() {
       setError(body.error ?? "Login failed");
       return;
     }
-    router.push(`/${body.org.slug}/projects`);
+    router.push(`/${body.org.slug}/dashboard`);
     router.refresh();
   }
 

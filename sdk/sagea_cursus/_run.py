@@ -15,13 +15,45 @@ from ._batching import Batcher
 from ._client import CursusClient
 
 HEARTBEAT_INTERVAL_S = 30.0
+# Trailing debounce for mid-run config syncs: rapid update() bursts cost
+# one PATCH, and finish() flushes so the final config always lands.
+CONFIG_SYNC_DEBOUNCE_S = 5.0
 
 
 class RunConfig(dict):
-    """Mutable run config, updatable mid-run (``cursus.config.update(...)``)."""
+    """Run config, synced to the server (debounced) on mid-run updates."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._sync: Any = None
+        self._timer: threading.Timer | None = None
+        self._timer_lock = threading.Lock()
+        super().__init__(*args, **kwargs)
 
     def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
         super().update(*args, **kwargs)
+        self._schedule_sync()
+
+    def _schedule_sync(self) -> None:
+        if self._sync is None:
+            return
+        with self._timer_lock:
+            if self._timer is not None:
+                self._timer.cancel()
+            self._timer = threading.Timer(CONFIG_SYNC_DEBOUNCE_S, self.flush)
+            self._timer.daemon = True
+            self._timer.start()
+
+    def flush(self) -> None:
+        with self._timer_lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+        if self._sync is None:
+            return
+        try:
+            self._sync(dict(self))
+        except Exception as exc:  # noqa: BLE001 — never crash training
+            warnings.warn(f"cursus: config sync failed (dropped): {exc}")
 
 
 class Run:
@@ -40,6 +72,7 @@ class Run:
         self.name = name
         self.url = url
         self.config = RunConfig(config or {})
+        self.config._sync = lambda cfg: self._client.update_config(self.id, cfg)
         self._batcher = Batcher(send=lambda pts: self._client.log_batch(self.id, pts))
         self._finished = False
         self._hb_stop = threading.Event()
@@ -81,6 +114,9 @@ class Run:
             self._batcher.close()
         finally:
             try:
+                # Final config lands before the status flips (finished
+                # runs are immutable server-side).
+                self.config.flush()
                 self._client.finish_run(self.id, status=status)
             except Exception as exc:  # noqa: BLE001 — never crash training
                 warnings.warn(f"cursus: finish() failed: {exc}")

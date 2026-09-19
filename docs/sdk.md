@@ -51,13 +51,13 @@ startup instead of confusingly mid-run.
 
 ```python
 run = cursus.init(
-    project="demo",          # required: created on first use
-    config={"lr": 1e-4},     # frozen hyperparameter snapshot
-    name="baseline-a",       # optional: server-generated when omitted
-    tags=["v2-data"],        # optional: free-text labels
-    group="vision-team",     # optional: log inside a group project
-    api_key="cursus_…",      # optional: see Authentication
-    base_url="https://…",    # optional: see Server address
+    project="demo",  # required: created on first use
+    config={"lr": 1e-4},  # frozen hyperparameter snapshot
+    name="baseline-a",  # optional: server-generated when omitted
+    tags=["v2-data"],  # optional: free-text labels
+    group="vision-team",  # optional: log inside a group project
+    api_key="cursus_…",  # optional: see Authentication
+    base_url="https://…",  # optional: see Server address
 )
 ```
 
@@ -68,8 +68,9 @@ run = cursus.init(
   design). Without `group`, the project is org-wide and visible to every
   member.
 - `config` is snapshotted at `init` time. `run.config` / `cursus.config`
-  mirror it locally and stay mutable, but mutations are **not** synced back
-  to the server — treat config as write-once per run.
+  stay mutable, and mid-run `update()` calls sync back debounced (one PATCH
+  per 5 s burst, flushed on `finish()` so the final config always lands).
+  Finished runs are immutable — updates after `finish()` stay local-only.
 - Calling `init()` twice warns and finishes the previous run first. One
   process tracks one run; log multi-process training from rank 0 only.
 
@@ -92,8 +93,8 @@ cursus.log({"train/loss": 0.42, "train/acc": 0.91}, step=epoch)
 ## `finish()` — end the run
 
 ```python
-cursus.finish()            # status="finished"
-cursus.finish("crashed")   # or "killed"
+cursus.finish()  # status="finished"
+cursus.finish("crashed")  # or "killed"
 ```
 
 - Flushes everything still buffered, stops the heartbeat, and marks the run
@@ -119,8 +120,9 @@ except Exception:
 ## `log_artifact()` — attach files
 
 ```python
-cursus.log_artifact("yolov8m", "runs/train/weights/best.pt",
-                    type="model", description="map50: 0.61")
+cursus.log_artifact(
+    "yolov8m", "runs/train/weights/best.pt", type="model", description="map50: 0.61"
+)
 cursus.log_artifact("dataset", ["train.csv", "val.csv"], type="dataset")
 ```
 
@@ -157,13 +159,15 @@ cursus.log_image("val/samples", "pred_epoch3.png", step=3)
 ```python
 sweep = cursus.create_sweep(
     "demo",
-    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"},
-     "batch": {"values": [16, 32]}},
+    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"}, "batch": {"values": [16, 32]}},
 )
 while (trial := cursus.next_trial(sweep["id"])) is not None:
-    run = cursus.init(project="demo", config=trial["config"],
-                      name=f"sweep-{trial['trial']}",
-                      sweep_id=trial["sweep_id"])
+    run = cursus.init(
+        project="demo",
+        config=trial["config"],
+        name=f"sweep-{trial['trial']}",
+        sweep_id=trial["sweep_id"],
+    )
     train(trial["config"])
     cursus.finish()
 ```

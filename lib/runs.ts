@@ -558,3 +558,69 @@ export async function batchUpdateRuns(
   );
   return { affected: rows.length };
 }
+
+export const RUN_CONFIG_MAX_KEYS = 100;
+export const RUN_CONFIG_MAX_BYTES = 32 * 1024;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+/** Deep merge for config updates: plain objects recurse, everything else
+ * (arrays, scalars) replaces. Last-write-wins, like the metrics summary. */
+export function deepMergeConfig(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (isPlainObject(value) && isPlainObject(next[key])) {
+      next[key] = deepMergeConfig(next[key] as Record<string, unknown>, value);
+    } else {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+/** Mid-run config sync (SDK debounced updates). RUNNING only — finished
+ * runs are history and 409. Caps hold the config column small: 100
+ * top-level keys, 32 KB serialized.
+ */
+export async function updateRunConfig(
+  auth: GroupAuth,
+  runId: string,
+  patch: Record<string, unknown>,
+): Promise<{ id: string; config: unknown }> {
+  requireRole(auth, "MEMBER");
+  await assertRunWritable(auth, runId);
+  const run = await db.run.findUnique({
+    where: { id: runId },
+    select: { id: true, status: true, config: true },
+  });
+  if (!run) throw new ApiError(404, "run not found");
+  if (run.status !== "RUNNING") {
+    throw new ApiError(409, "config is frozen once the run finishes");
+  }
+  const merged = deepMergeConfig(
+    (run.config ?? {}) as Record<string, unknown>,
+    patch,
+  );
+  if (Object.keys(merged).length > RUN_CONFIG_MAX_KEYS) {
+    throw new ApiError(400, "config exceeds 100 top-level keys");
+  }
+  if (JSON.stringify(merged).length > RUN_CONFIG_MAX_BYTES) {
+    throw new ApiError(400, "config exceeds 32 KB");
+  }
+  const updated = await db.run.update({
+    where: { id: run.id },
+    data: { config: merged as object },
+    select: { id: true, config: true },
+  });
+  return { id: updated.id, config: updated.config };
+}

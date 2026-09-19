@@ -114,6 +114,12 @@ export const batchRunsSchema = z
 
 export type BatchRunsInput = z.infer<typeof batchRunsSchema>;
 
+export const updateRunConfigSchema = z.object({
+  config: z.record(z.string(), z.unknown()),
+});
+
+export type UpdateRunConfigInput = z.infer<typeof updateRunConfigSchema>;
+
 export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),

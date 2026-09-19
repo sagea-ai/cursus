@@ -280,3 +280,32 @@ def test_next_trial_204_means_exhausted() -> None:
     client = CursusClient(api_key="k")
     client._session = SimpleNamespace(post=lambda *a, **k: Gone())
     assert client.next_trial("sw1") is None
+
+
+def test_config_update_debounces_and_flushes(monkeypatch) -> None:
+    import time
+
+    from sagea_cursus import _run as run_mod
+
+    monkeypatch.setattr(run_mod, "CONFIG_SYNC_DEBOUNCE_S", 0.05)
+    synced = []
+    cfg = run_mod.RunConfig({"lr": 0.1})
+    cfg._sync = synced.append
+    cfg.update({"lr": 0.2})
+    cfg.update({"lr": 0.3})
+    cfg.update({"epochs": 5})
+    time.sleep(0.25)
+    assert synced == [{"lr": 0.3, "epochs": 5}]
+
+    cfg.update({"lr": 0.4})
+    cfg.flush()
+    assert synced[-1] == {"lr": 0.4, "epochs": 5}
+
+    def boom(snapshot):
+        raise ConnectionError("down")
+
+    cfg._sync = boom
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cfg.flush()
+    assert any("config sync failed" in str(w.message) for w in caught)

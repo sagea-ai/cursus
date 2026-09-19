@@ -309,6 +309,22 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.locator("svg").first().waitFor({ timeout: 15_000 });
   await page.getByRole("tab", { name: "Config" }).click();
   await expect(page.getByText("0.01").first()).toBeVisible();
+  // Mid-run config sync lands on the Config tab (run-a is finished by
+  // now, so sync a fresh running run instead).
+  const cfgRun = await request.post("/api/v1/runs", {
+    headers: { Cookie: adminCookie },
+    data: { project: "e2e-proj", name: "cfg-run" },
+  });
+  expect(cfgRun.ok()).toBeTruthy();
+  const cfgId = ((await cfgRun.json()) as { run_id: string }).run_id;
+  const cfg = await request.patch(`/api/v1/runs/${cfgId}/config`, {
+    headers: { Cookie: adminCookie },
+    data: { config: { e2e_note: "synced-mid-run" } },
+  });
+  expect(cfg.ok()).toBeTruthy();
+  await page.goto(`/${orgSlug}/e2e-proj/runs/${cfgId}`);
+  await page.getByRole("tab", { name: "Config" }).click();
+  await expect(page.getByText("synced-mid-run").first()).toBeVisible();
 
   // Inline rename persists.
   await page.getByRole("tab", { name: "Charts" }).click();

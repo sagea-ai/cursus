@@ -161,6 +161,14 @@ class CursusClient:
         resp.raise_for_status()
         return resp.json()
 
+    def update_config(self, run_id: str, config: dict[str, Any]) -> None:
+        resp = self._session.patch(
+            f"{self.base_url}/api/v1/runs/{run_id}/config",
+            json={"config": config},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
     def create_sweep(
         self,
         project: str,

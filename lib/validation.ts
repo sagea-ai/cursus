@@ -56,6 +56,16 @@ export const requestMediaSchema = z.object({
 
 export type RequestMediaInput = z.infer<typeof requestMediaSchema>;
 
+export const createWebhookSchema = z.object({
+  url: z.string().url().max(2048),
+  events: z
+    .array(z.enum(["run.finished", "run.crashed"]))
+    .min(1)
+    .max(2),
+});
+
+export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
+
 export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),

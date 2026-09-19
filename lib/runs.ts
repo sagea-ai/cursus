@@ -200,14 +200,24 @@ export async function finishRun(
   input: FinishRunInput,
 ): Promise<{ run_id: string; status: string }> {
   await assertRunWritable(auth, runId);
+  const finishedAt = new Date();
   const run = await db.run.update({
     where: { id: runId },
     data: {
       status: FINISH_MAP[input.status],
-      finishedAt: new Date(),
+      finishedAt,
     },
     select: { id: true, status: true },
   });
+  // Webhooks settle on their own: dispatch failures never fail the finish.
+  // Awaited (not detached) so runtimes don't cut dispatch mid-flight; the
+  // 5 s per-endpoint timeout bounds the delay, dead endpoints fail fast.
+  try {
+    const { notifyRunFinished } = await import("@/lib/webhooks");
+    await notifyRunFinished(run.id, run.status, finishedAt);
+  } catch {
+    // Notification must never break finishes.
+  }
   return { run_id: run.id, status: run.status };
 }
 

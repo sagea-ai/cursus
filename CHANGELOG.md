@@ -5,6 +5,11 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-19
+
+Fix: force-dynamic rendering app-wide so the Docker image builds with no
+database reachable (GHCR publish was failing on build-time prerender).
+
 ## [0.1.1] - 2026-09-19
 
 Patch: Connect card with the deployment base URL on API Keys, quickstart

@@ -8,7 +8,7 @@ experience levels. Participation (issues, PRs, discussions) requires:
 2. **No harassment, hate speech, or personal attacks.** Zero tolerance;
    violations mean removal from the project's spaces.
 3. **Stay on topic and respect scope.** Feature debates reference the
-   non-goals list (README) and the parity PRD before relitigating them.
+   non-goals list (README) before relitigating settled decisions.
 4. **Disclose conflicts.** If a change benefits your employer commercially,
    say so — the noncommercial license makes this load-bearing.
 

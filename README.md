@@ -15,8 +15,6 @@ plus Postgres plus S3-compatible storage, deployed with
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the design
 rationale and [docs/sdk.md](./docs/sdk.md) for the full SDK guide.
 
-![Org dashboard](./assets/screenshots/dashboard.png)
-
 ## Features
 
 - **Runs**: config/tags/notes, live status, heartbeat staleness detection,
@@ -95,10 +93,6 @@ for step in range(100):
 cursus.finish()
 ```
 
-![Personal activity](./assets/screenshots/activity.png)
-
-![Sweep detail](./assets/screenshots/sweeps.png)
-
 ## Repo layout
 
 - `app/`: Next.js dashboard + `app/api/v1/` routes (runs, sweeps, media,
@@ -108,7 +102,6 @@ cursus.finish()
 - `prisma/schema.prisma`: source of truth for the data model
 - `sdk/`: `sagea_cursus` Python package
 - `docs/`: product docs only (`ARCHITECTURE.md`, `sdk.md`)
-- `PRD-WANDB-PARITY.md`: the parity roadmap (planning doc, not user docs)
 - `e2e/`: Playwright critical-journey suite
 - `tests/api/`: DB-backed route tests (success + 403/401/404 paths)
 

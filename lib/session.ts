@@ -50,7 +50,7 @@ export async function verifySessionToken(
       typeof uid !== "string" ||
       typeof org !== "string" ||
       typeof email !== "string" ||
-      (role !== "SUPER_ADMIN" && role !== "MEMBER")
+      (role !== "SUPER_ADMIN" && role !== "MEMBER" && role !== "VIEWER")
     ) {
       return null;
     }

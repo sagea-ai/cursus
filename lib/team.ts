@@ -238,7 +238,7 @@ export async function previewInvite(
 export async function listMembers(
   session: Session | null,
 ): Promise<PublicUser[]> {
-  requireRole(session, "MEMBER");
+  requireRole(session, "VIEWER");
   const users = await db.user.findMany({
     where: { orgId: session.orgId },
     orderBy: { createdAt: "asc" },
@@ -257,6 +257,7 @@ export async function listMembers(
 export async function inviteMember(
   session: Session | null,
   email: string,
+  role: "MEMBER" | "VIEWER" = "MEMBER",
 ): Promise<{ user: PublicUser; inviteUrl: string }> {
   requireRole(session, "SUPER_ADMIN");
   const existing = await db.user.findUnique({ where: { email } });
@@ -271,7 +272,7 @@ export async function inviteMember(
       orgId: session.orgId,
       email,
       passwordHash: INVITE_PENDING_HASH,
-      role: "MEMBER",
+      role,
     },
   });
   const token = await signInviteToken({
@@ -299,11 +300,11 @@ export async function setMemberRole(
   requireRole(session, "SUPER_ADMIN");
   const target = await memberInOrg(session.orgId, targetUserId);
   if (target.role === role) return toPublicUser(target);
-  if (role === "MEMBER" && target.role === "SUPER_ADMIN") {
+  if (role !== "SUPER_ADMIN" && target.role === "SUPER_ADMIN") {
     const admins = await db.user.count({
       where: { orgId: session.orgId, role: "SUPER_ADMIN" },
     });
-    // Always keep at least one super admin (§5.1).
+    // Always keep at least one super admin.
     if (admins <= 1) {
       throw new ApiError(409, "cannot demote the last super admin");
     }

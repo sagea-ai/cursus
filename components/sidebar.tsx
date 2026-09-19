@@ -16,6 +16,7 @@ import {
 import { BsBoxes } from "react-icons/bs";
 import { MdStackedBarChart } from "react-icons/md";
 import { UserMenu } from "@/components/user-menu";
+import type { Session } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const SECTIONS: {
@@ -99,7 +100,7 @@ export function Sidebar({
   orgName: string;
   email: string;
   displayName: string;
-  role: "SUPER_ADMIN" | "MEMBER";
+  role: Session["role"];
 }) {
   const pathname = usePathname();
   // Hydration-safe persisted state (same pattern as DashboardGreeting):

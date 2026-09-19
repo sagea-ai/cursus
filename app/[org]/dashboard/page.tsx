@@ -45,6 +45,7 @@ export default async function DashboardPage({
   const { org: orgSlug } = await params;
   const { session, org, displayName } = await requirePageSession(orgSlug);
   const isAdmin = session.role === "SUPER_ADMIN";
+  const isViewer = session.role === "VIEWER";
   const [stats, groups] = await Promise.all([
     getDashboardStats(session),
     isAdmin ? Promise.resolve([]) : listGroups(session),
@@ -96,9 +97,11 @@ export default async function DashboardPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <DashboardGreeting name={displayName} />
         <div className="flex gap-2">
-          <Link href={`/${org.slug}/projects`}>
-            <Button>New Project</Button>
-          </Link>
+          {!isViewer && (
+            <Link href={`/${org.slug}/projects`}>
+              <Button>New Project</Button>
+            </Link>
+          )}
           {isAdmin && (
             <Link href={`/${org.slug}/team`}>
               <Button variant="secondary">Invite member</Button>

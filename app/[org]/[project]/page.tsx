@@ -66,6 +66,7 @@ export default async function ProjectOverviewPage({
           orgSlug={org.slug}
           projectSlug={ov.project.slug}
           initialName={ov.project.name}
+          canEdit={session.role !== "VIEWER"}
         />
       </div>
       <ProjectTabs orgSlug={org.slug} projectSlug={ov.project.slug} />

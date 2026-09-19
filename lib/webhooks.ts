@@ -2,7 +2,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-import { requireAuth, type Session } from "@/lib/auth";
+import { requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canWriteGroup, projectVisibilityFilter } from "@/lib/groups";
 import { ApiError } from "@/lib/http";
@@ -83,7 +83,7 @@ export async function listWebhooks(
   session: Session | null,
   projectSlug: string,
 ): Promise<WebhookRow[]> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const project = await assertProjectVisible(session, projectSlug);
   const rows = await db.webhook.findMany({
     where: { projectId: project.id },
@@ -104,7 +104,7 @@ export async function createWebhook(
   projectSlug: string,
   input: CreateWebhookInput,
 ): Promise<{ webhook: WebhookRow; secret: string }> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const project = await assertProjectWritable(session, projectSlug);
   const count = await db.webhook.count({ where: { projectId: project.id } });
   if (count >= WEBHOOK_MAX_PER_PROJECT) {
@@ -137,7 +137,7 @@ export async function deleteWebhook(
   projectSlug: string,
   webhookId: string,
 ): Promise<{ id: string }> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const project = await assertProjectWritable(session, projectSlug);
   const row = await db.webhook.findFirst({
     where: { id: webhookId, projectId: project.id },

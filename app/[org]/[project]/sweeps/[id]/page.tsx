@@ -49,6 +49,7 @@ export default async function SweepDetailPage({
       <ProjectTabs orgSlug={org.slug} projectSlug={ov.project.slug} />
       <SweepDetail
         sweep={sweep}
+        canWrite={session.role !== "VIEWER"}
         runs={runs.map((r) => ({
           id: r.id,
           name: r.name,

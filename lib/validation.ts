@@ -209,10 +209,11 @@ export type ArtifactUploadFields = z.infer<typeof artifactUploadFieldsSchema>;
 
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(320),
+  role: z.enum(["MEMBER", "VIEWER"]).optional().default("MEMBER"),
 });
 
 export const updateRoleSchema = z.object({
-  role: z.enum(["SUPER_ADMIN", "MEMBER"]),
+  role: z.enum(["SUPER_ADMIN", "MEMBER", "VIEWER"]),
 });
 
 export const renameMemberSchema = z.object({

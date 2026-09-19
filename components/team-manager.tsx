@@ -5,6 +5,7 @@ import * as React from "react";
 import { FiCopy, FiMoreVertical, FiUserPlus } from "react-icons/fi";
 
 import { Badge } from "@/components/ui/badge";
+import type { Session } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
@@ -37,11 +38,16 @@ export interface MemberRow {
   id: string;
   email: string;
   name: string;
-  role: "SUPER_ADMIN" | "MEMBER";
+  role: Session["role"];
   status: "active" | "pending" | "inactive";
   createdAt: string;
 }
 
+const ROLE_META = {
+  SUPER_ADMIN: { label: "super admin", variant: "default" as const },
+  MEMBER: { label: "member", variant: "secondary" as const },
+  VIEWER: { label: "viewer", variant: "outline" as const },
+};
 const STATUS_META = {
   active: { label: "Active", variant: "active" as const },
   pending: { label: "Pending", variant: "warning" as const },
@@ -60,6 +66,7 @@ export function TeamManager({
   const router = useRouter();
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [email, setEmail] = React.useState("");
+  const [inviteRole, setInviteRole] = React.useState("MEMBER");
   const [inviteUrl, setInviteUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -91,7 +98,7 @@ export function TeamManager({
     const res = await fetch("/api/v1/team/invite", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, role: inviteRole }),
     });
     const body = await res.json();
     setBusy(false);
@@ -197,6 +204,7 @@ export function TeamManager({
   function closeInvite() {
     setInviteOpen(false);
     setEmail("");
+    setInviteRole("MEMBER");
     setInviteUrl(null);
     setError(null);
     setCopied(false);
@@ -251,6 +259,18 @@ export function TeamManager({
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="invite-role">Role</Label>
+                    <select
+                      id="invite-role"
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value)}
+                      className="h-9 rounded-md border border-input bg-card px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <option value="MEMBER">Member</option>
+                      <option value="VIEWER">Viewer (read-only)</option>
+                    </select>
+                  </div>
                   {error && (
                     <p role="alert" className="text-sm text-warning">
                       {error}
@@ -285,10 +305,8 @@ export function TeamManager({
               <TableCell className="font-medium">{m.name || "—"}</TableCell>
               <TableCell className="text-muted-foreground">{m.email}</TableCell>
               <TableCell>
-                <Badge
-                  variant={m.role === "SUPER_ADMIN" ? "default" : "secondary"}
-                >
-                  {m.role === "SUPER_ADMIN" ? "super admin" : "member"}
+                <Badge variant={ROLE_META[m.role].variant}>
+                  {ROLE_META[m.role].label}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -325,18 +343,16 @@ export function TeamManager({
                       </DropdownMenuItem>
                       {m.status === "active" && (
                         <>
-                          {m.role === "MEMBER" ? (
-                            <DropdownMenuItem
-                              onClick={() => void setRole(m.id, "SUPER_ADMIN")}
-                            >
-                              Promote to super admin
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              onClick={() => void setRole(m.id, "MEMBER")}
-                            >
-                              Demote to member
-                            </DropdownMenuItem>
+                          {(Object.keys(ROLE_META) as (typeof m.role)[]).map(
+                            (r) =>
+                              r !== m.role && (
+                                <DropdownMenuItem
+                                  key={r}
+                                  onClick={() => void setRole(m.id, r)}
+                                >
+                                  Set role to {ROLE_META[r].label}
+                                </DropdownMenuItem>
+                              ),
                           )}
                           <DropdownMenuItem
                             onClick={() =>

@@ -1,4 +1,4 @@
-import { requireRole, type Session } from "@/lib/auth";
+import { requireAuth, type Session } from "@/lib/auth";
 import { generateApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
@@ -17,7 +17,7 @@ export interface PublicKey {
 }
 
 export async function listKeys(session: Session | null): Promise<PublicKey[]> {
-  requireRole(session, "MEMBER");
+  requireAuth(session);
   const isAdmin = session.role === "SUPER_ADMIN";
   const rows = await db.apiKey.findMany({
     where: isAdmin
@@ -40,7 +40,7 @@ export async function createKey(
   session: Session | null,
   label: string,
 ): Promise<{ key: PublicKey; plaintext: string }> {
-  requireRole(session, "MEMBER");
+  requireAuth(session);
   const { plaintext, keyHash } = generateApiKey();
   // Key row + audit event commit atomically: a key must never exist without
   // its creation record (or vice versa).
@@ -82,7 +82,7 @@ export async function revokeKey(
   session: Session | null,
   keyId: string,
 ): Promise<{ id: string }> {
-  requireRole(session, "MEMBER");
+  requireAuth(session);
   const row = await db.apiKey.findFirst({
     where: { id: keyId, orgId: session.orgId },
     select: { id: true, userId: true, revokedAt: true },
@@ -120,7 +120,7 @@ export async function revokeKey(
   session: Session | null,
   keyId: string,
 ): Promise<{ key: PublicKey; plaintext: string }> {
-  requireRole(session, "MEMBER");
+  requireAuth(session);
   const row = await db.apiKey.findFirst({
     where: { id: keyId, orgId: session.orgId },
     select: { id: true, userId: true, label: true, revokedAt: true },
@@ -193,7 +193,7 @@ export async function getKeyDetail(
   session: Session | null,
   keyId: string,
 ): Promise<KeyDetail> {
-  requireRole(session, "MEMBER");
+  requireAuth(session);
   const row = await db.apiKey.findFirst({
     where: { id: keyId, orgId: session.orgId },
     include: { user: { select: { email: true } } },

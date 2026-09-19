@@ -29,15 +29,25 @@ export function requireAuth(
   if (!session) throw new AuthError(401, "authentication required");
 }
 
+const ROLE_RANK: Record<Role, number> = {
+  VIEWER: 1,
+  MEMBER: 2,
+  SUPER_ADMIN: 3,
+};
+
 export function requireRole(
   session: Session | null,
-  role: Role,
-): asserts session is Session {
-  requireAuth(session);
-  if (role === "SUPER_ADMIN" && session.role !== "SUPER_ADMIN") {
-    throw new AuthError(403, "super admin only");
+  min: Role,
+): asserts session is Session;
+export function requireRole(session: { role: Role } | null, min: Role): void;
+export function requireRole(session: { role: Role } | null, min: Role): void {
+  if (!session) throw new AuthError(401, "authentication required");
+  if ((ROLE_RANK[session.role] ?? 0) < (ROLE_RANK[min] ?? 0)) {
+    throw new AuthError(
+      403,
+      min === "SUPER_ADMIN" ? "super admin only" : "members and above",
+    );
   }
-  // MEMBER is the baseline: any authenticated session satisfies it.
 }
 
 // --- API keys (SDK auth) ---------------------------------------------------

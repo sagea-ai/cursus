@@ -104,7 +104,7 @@ export async function createProject(
   orgSlug: string,
   input: { name: string; slug?: string; group?: string },
 ): Promise<{ id: string; slug: string; name: string }> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const orgId = await orgIdFor(session, orgSlug);
   const slug = slugify(input.slug ?? input.name);
   if (!slug) throw new ApiError(400, "could not derive a slug from the name");
@@ -288,7 +288,7 @@ export async function updateProject(
   name: string;
   group: { slug: string; name: string } | null;
 }> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const orgId = await orgIdFor(session, orgSlug);
   const { id: projectId } = await assertProjectVisible(
     { orgId, userId: session.userId, role: session.role },

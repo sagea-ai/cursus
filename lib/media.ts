@@ -1,4 +1,4 @@
-import { requireAuth, type Session } from "@/lib/auth";
+import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assertRunWritable, runVisibilityFilter } from "@/lib/groups";
 import { ApiError } from "@/lib/http";
@@ -62,7 +62,7 @@ export async function requestMediaUpload(
   runId: string,
   input: RequestMediaInput,
 ): Promise<UploadTicket> {
-  requireAuth(auth);
+  requireRole(auth, "MEMBER");
   requireStorage();
   const run = await runOrg(auth, runId);
   const mime = input.mime as keyof typeof MEDIA_MIME_ALLOW;
@@ -132,7 +132,7 @@ export async function completeMediaUpload(
   runId: string,
   mediaId: string,
 ): Promise<{ id: string; key: string; step: number }> {
-  requireAuth(auth);
+  requireRole(auth, "MEMBER");
   requireStorage();
   const run = await runOrg(auth, runId);
   const item = await db.mediaItem.findFirst({

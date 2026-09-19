@@ -62,7 +62,11 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
   `lib/api-auth.ts`): the cookie is only an identity assertion; every guarded
   route re-reads the user row. A demoted/deactivated user loses access on
   their very next request — stale cookies grant nothing.
-- One guard: `requireRole()` in `lib/auth.ts`. No inline role checks in routes.
+- One guard: `requireRole()` in `lib/auth.ts` with a hierarchy
+  (SUPER_ADMIN > MEMBER > VIEWER). No inline role checks in routes.
+  Viewers read everything members can see but write nothing: every write
+  service gates MEMBER minimum, and viewer-owned API keys are read-scoped
+  (ingestion rejects them) while working for reads.
 - Keys are never valid for team-management endpoints (session-only by design;
   pinned by an explicit test).
 - First boot: `POST /api/v1/auth/bootstrap` provisions the org + first super

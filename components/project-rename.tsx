@@ -11,10 +11,12 @@ export function ProjectRename({
   orgSlug,
   projectSlug,
   initialName,
+  canEdit,
 }: {
   orgSlug: string;
   projectSlug: string;
   initialName: string;
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
@@ -47,15 +49,17 @@ export function ProjectRename({
     return (
       <span className="flex items-center gap-1.5">
         <h1 className="text-2xl font-semibold">{initialName}</h1>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setEditing(true)}
-          aria-label="Rename project"
-          title="Rename project"
-        >
-          <FiEdit2 />
-        </Button>
+        {canEdit && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setEditing(true)}
+            aria-label="Rename project"
+            title="Rename project"
+          >
+            <FiEdit2 />
+          </Button>
+        )}
       </span>
     );
   }

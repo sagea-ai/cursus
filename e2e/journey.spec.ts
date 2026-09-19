@@ -17,6 +17,7 @@ const OUTSIDER = {
   email: "outsider@e2e.test",
   password: "Outsider-password-1",
 };
+const VIEWER = { email: "viewer@e2e.test", password: "Viewer-password-1" };
 
 function sessionCookie(setCookie: string | null): string {
   const m = /cursus_session=([^;]+)/.exec(setCookie ?? "");
@@ -531,4 +532,40 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(
     page.getByRole("cell", { name: "E2E Member Renamed" }),
   ).toBeVisible();
+
+  // 12. Viewer role: invite as viewer, accept, read everything, write nothing.
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await page.getByLabel("Email").fill(VIEWER.email);
+  await page.getByLabel("Role").selectOption("VIEWER");
+  await page.getByRole("button", { name: "Generate invite link" }).click();
+  const viewerLink =
+    (await page.locator("code").last().textContent())?.trim() ?? "";
+  expect(viewerLink).toContain("/invite/");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /Account:/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page).toHaveURL("/login");
+
+  await page.goto(viewerLink);
+  await page.getByLabel("Display name").fill("E2E Viewer");
+  await page.getByLabel("Choose a password").fill(VIEWER.password);
+  await page.getByLabel("Confirm password").fill(VIEWER.password);
+  await page.getByRole("button", { name: "Set password and join" }).click();
+  await expect(page).toHaveURL(`/${orgSlug}/dashboard`);
+  // No creation UI anywhere for viewers…
+  await expect(page.getByRole("button", { name: "New Project" })).toHaveCount(
+    0,
+  );
+  await page.goto(`/${orgSlug}/team`);
+  await expect(page.getByRole("button", { name: "Invite Member" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("viewer", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Actions for/ })).toHaveCount(
+    0,
+  );
+  // …but reads work: run detail renders, rename control is gone.
+  await page.goto(`/${orgSlug}/e2e-proj/runs/${runIds[0]}`);
+  await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Rename run" })).toHaveCount(0);
 });

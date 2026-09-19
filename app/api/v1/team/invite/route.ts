@@ -9,7 +9,11 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     const session = await getLiveSession(request);
     const body = inviteMemberSchema.parse(await request.json());
-    const { user, inviteUrl } = await inviteMember(session, body.email);
+    const { user, inviteUrl } = await inviteMember(
+      session,
+      body.email,
+      body.role,
+    );
     return Response.json({ user, inviteUrl }, { status: 201 });
   } catch (e) {
     return toErrorResponse(e);

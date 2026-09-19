@@ -6,6 +6,7 @@ import * as React from "react";
 import { FiLogOut, FiUser } from "react-icons/fi";
 
 import { Badge } from "@/components/ui/badge";
+import type { Session } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +27,7 @@ export function UserMenu({
 }: {
   email: string;
   displayName: string;
-  role: "SUPER_ADMIN" | "MEMBER";
+  role: Session["role"];
   profileHref: string;
   collapsed: boolean;
 }) {

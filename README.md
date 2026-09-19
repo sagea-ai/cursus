@@ -85,8 +85,9 @@ cursus.finish()
 
 ## Team & auth model
 
-Two roles: super admin (invite/promote/demote/deactivate, revoke any key) and
-member (projects, own keys, view everything; no private projects in v1).
+Three roles: super admin (invite/promote/demote/deactivate/delete, revoke
+any key), member (projects, sweeps, own keys, view everything), and viewer
+(read-only: no writes, API keys read-scoped).
 First boot creates the org + super admin via `POST /api/v1/auth/bootstrap`
 (empty-DB only); everyone else joins through invite links the admin copies
 manually (no email infra in v1).

@@ -65,6 +65,7 @@ export default async function RunDetailPage({
             initialName={detail.name}
             initialTags={detail.tags}
             isAdmin={session.role === "SUPER_ADMIN"}
+            canEdit={session.role !== "VIEWER"}
             runsPath={`/${org.slug}/${projectSlug}/runs`}
           />
           <StatusBadge status={detail.status} />

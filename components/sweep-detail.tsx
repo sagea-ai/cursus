@@ -41,6 +41,7 @@ const STATE_VARIANT = {
 export function SweepDetail({
   sweep,
   runs,
+  canWrite,
 }: {
   sweep: {
     id: string;
@@ -52,6 +53,7 @@ export function SweepDetail({
     createdBy: string;
   };
   runs: SweepRunRow[];
+  canWrite: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -86,7 +88,7 @@ export function SweepDetail({
           {sweep.method} · {sweep.runCount}{" "}
           {sweep.runCount === 1 ? "run" : "runs"} · by {sweep.createdBy}
         </span>
-        {sweep.state === "RUNNING" && (
+        {sweep.state === "RUNNING" && canWrite && (
           <span className="ml-auto flex gap-2">
             <Button
               variant="secondary"

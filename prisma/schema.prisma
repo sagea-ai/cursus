@@ -23,6 +23,7 @@ datasource db {
 }
 
 enum Role {
+  VIEWER
   SUPER_ADMIN
   MEMBER
 }

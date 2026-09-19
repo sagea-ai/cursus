@@ -9,19 +9,22 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 
-// Inline run rename + tag editing (§7.6) and admin delete. PATCH/DELETE
+// Inline run rename + tag editing (members) and admin delete. Viewers get
+// the read-only header (canEdit false hides every write control).
 // /api/v1/runs/:id, then router.refresh() to re-render the server page.
 export function RunHeaderEditor({
   runId,
   initialName,
   initialTags,
   isAdmin,
+  canEdit,
   runsPath,
 }: {
   runId: string;
   initialName: string;
   initialTags: string[];
   isAdmin: boolean;
+  canEdit: boolean;
   runsPath: string;
 }) {
   const router = useRouter();
@@ -136,15 +139,17 @@ export function RunHeaderEditor({
         ) : (
           <span className="flex items-center gap-1.5">
             <h1 className="text-2xl font-semibold">{initialName}</h1>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setEditingName(true)}
-              aria-label="Rename run"
-              title="Rename run"
-            >
-              <FiEdit2 />
-            </Button>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingName(true)}
+                aria-label="Rename run"
+                title="Rename run"
+              >
+                <FiEdit2 />
+              </Button>
+            )}
           </span>
         )}
         {isAdmin && (
@@ -163,32 +168,36 @@ export function RunHeaderEditor({
         {tags.map((t) => (
           <Badge key={t} variant="outline" className="gap-1">
             {t}
-            <button
-              onClick={() => void removeTag(t)}
-              aria-label={`Remove tag ${t}`}
-              className="opacity-60 hover:opacity-100"
-            >
-              <FiX className="size-3" />
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => void removeTag(t)}
+                aria-label={`Remove tag ${t}`}
+                className="opacity-60 hover:opacity-100"
+              >
+                <FiX className="size-3" />
+              </button>
+            )}
           </Badge>
         ))}
-        <form onSubmit={addTag} className="flex items-center gap-1">
-          <Input
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            placeholder="add tag"
-            aria-label="Add tag"
-            className="h-7 w-28 text-xs"
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label="Add tag"
-          >
-            <FiPlus />
-          </Button>
-        </form>
+        {canEdit && (
+          <form onSubmit={addTag} className="flex items-center gap-1">
+            <Input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              placeholder="add tag"
+              aria-label="Add tag"
+              className="h-7 w-28 text-xs"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Add tag"
+            >
+              <FiPlus />
+            </Button>
+          </form>
+        )}
       </div>
       {error && (
         <p role="alert" className="text-sm text-warning">

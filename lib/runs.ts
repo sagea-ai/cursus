@@ -75,6 +75,7 @@ export async function createRun(
   auth: GroupAuth & { userId: string },
   input: CreateRunInput,
 ): Promise<{ run_id: string; name: string; url: string }> {
+  requireRole(auth, "MEMBER");
   // Optional group: the project is resolved or created INSIDE it (caller
   // must belong, admins bypass). A group-scoped project collects that
   // group's runs; runs inherit visibility from their project.
@@ -169,6 +170,7 @@ export async function logBatch(
   runId: string,
   input: LogBatchInput,
 ): Promise<{ logged: number }> {
+  requireRole(auth, "MEMBER");
   await assertRunWritable(auth, runId);
   const rows = input.points.map((p) => ({
     runId,
@@ -204,6 +206,7 @@ export async function finishRun(
   runId: string,
   input: FinishRunInput,
 ): Promise<{ run_id: string; status: string }> {
+  requireRole(auth, "MEMBER");
   await assertRunWritable(auth, runId);
   const finishedAt = new Date();
   const run = await db.run.update({
@@ -230,6 +233,7 @@ export async function heartbeat(
   auth: GroupAuth,
   runId: string,
 ): Promise<{ run_id: string }> {
+  requireRole(auth, "MEMBER");
   await assertRunWritable(auth, runId);
   await db.run.update({
     where: { id: runId },
@@ -458,6 +462,7 @@ export async function updateRun(
   runId: string,
   input: UpdateRunInput,
 ): Promise<{ id: string; name: string; tags: string[]; notes: string }> {
+  requireRole(auth, "MEMBER");
   await assertRunWritable(auth, runId);
   const run = await db.run.update({
     where: { id: runId },

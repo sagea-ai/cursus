@@ -1,4 +1,4 @@
-import { requireAuth, type Session } from "@/lib/auth";
+import { requireAuth, requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canWriteGroup, projectVisibilityFilter } from "@/lib/groups";
 import { ApiError } from "@/lib/http";
@@ -136,7 +136,7 @@ export async function createSweep(
   projectSlug: string,
   input: CreateSweepInput,
 ): Promise<SweepDetail> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   // Projects resolve-or-create like runs (SDK-first flow): org-wide, no
   // group — group placement happens on the project, not the sweep.
   const slug = projectSlug.trim();
@@ -274,7 +274,7 @@ export async function nextTrial(
   session: Session | null,
   sweepId: string,
 ): Promise<SweepTrial | null> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const sweep = await assertSweepVisible(session, sweepId);
   if (sweep.state !== "RUNNING") return null;
   const { dims, gridCells } = validateSpace(
@@ -322,7 +322,7 @@ export async function setSweepState(
   sweepId: string,
   state: "FINISHED" | "CANCELLED",
 ): Promise<SweepDetail> {
-  requireAuth(session);
+  requireRole(session, "MEMBER");
   const sweep = await assertSweepVisible(session, sweepId);
   const project = await db.project.findUniqueOrThrow({
     where: { id: sweep.projectId },

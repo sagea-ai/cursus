@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import { runVisibilityFilter, type GroupAuth } from "@/lib/groups";
@@ -49,6 +50,7 @@ export async function createArtifactVersion(
   fields: ArtifactUploadFields,
   uploads: UploadFile[],
 ): Promise<CreatedVersion> {
+  requireRole(auth, "MEMBER");
   if (uploads.length === 0) throw new ApiError(400, "no files uploaded");
   if (uploads.length > MAX_FILES_PER_VERSION) {
     throw new ApiError(

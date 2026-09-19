@@ -45,7 +45,9 @@ export default async function SweepsPage({
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold">Sweeps</h1>
-          <SweepCreateDialog projectSlug={ov.project.slug} />
+          {session.role !== "VIEWER" && (
+            <SweepCreateDialog projectSlug={ov.project.slug} />
+          )}
         </div>
       </div>
       <ProjectTabs orgSlug={org.slug} projectSlug={ov.project.slug} />

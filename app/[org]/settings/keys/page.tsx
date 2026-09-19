@@ -1,4 +1,6 @@
+import { ConnectCard } from "@/components/connect-card";
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
+import { deploymentBaseUrl } from "@/lib/deployment";
 import { listKeys } from "@/lib/keys";
 import { requirePageSession } from "@/lib/page-auth";
 
@@ -26,10 +28,12 @@ export default async function KeysPage({
         <p className="text-xs text-muted-foreground">{org.name}</p>
         <h1 className="text-2xl font-semibold">API Keys</h1>
       </div>
+      <ConnectCard orgSlug={org.slug} />
       <KeysManager
         keys={rows}
         isAdmin={session.role === "SUPER_ADMIN"}
         orgSlug={org.slug}
+        baseUrl={await deploymentBaseUrl()}
       />
     </main>
   );

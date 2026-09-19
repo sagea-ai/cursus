@@ -40,10 +40,12 @@ export function KeysManager({
   keys,
   isAdmin,
   orgSlug,
+  baseUrl,
 }: {
   keys: KeyRow[];
   isAdmin: boolean;
   orgSlug: string;
+  baseUrl: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -164,14 +166,22 @@ export function KeysManager({
                   <code className="break-all rounded-md bg-muted p-3 font-mono text-xs">
                     {plaintext}
                   </code>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Use it right away</Label>
+                    <code className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono text-xs">
+                      {`export CURSUS_BASE_URL="${baseUrl}"\nexport CURSUS_API_KEY="${plaintext}"`}
+                    </code>
+                  </div>
                   <DialogFooter>
                     <Button
                       onClick={() => {
-                        void navigator.clipboard.writeText(plaintext);
+                        void navigator.clipboard.writeText(
+                          `export CURSUS_BASE_URL="${baseUrl}"\nexport CURSUS_API_KEY="${plaintext}"`,
+                        );
                         setCopied(true);
                       }}
                     >
-                      <FiCopy /> {copied ? "Copied" : "Copy key"}
+                      <FiCopy /> {copied ? "Copied" : "Copy setup"}
                     </Button>
                   </DialogFooter>
                 </div>

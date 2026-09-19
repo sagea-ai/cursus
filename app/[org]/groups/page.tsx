@@ -1,6 +1,6 @@
 import { GroupsTable } from "@/components/groups-table";
 import { NewGroupDialog } from "@/components/new-group-dialog";
-import { CodeBlock } from "@/components/code-block";
+import { QuickstartSnippet } from "@/components/quickstart-snippet";
 import {
   Card,
   CardContent,
@@ -53,14 +53,7 @@ export default async function GroupsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CodeBlock
-              language="python"
-              code={`import sagea_cursus as cursus
-
-run = cursus.init(project="demo", group="vision-team")
-cursus.log({"train/loss": 0.4}, step=1)
-cursus.finish()`}
-            />
+            <QuickstartSnippet project="demo" group="vision-team" />
           </CardContent>
         </Card>
       ) : (

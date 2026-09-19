@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ActivityChart } from "@/components/activity-chart";
 import { StatusMixChart } from "@/components/status-mix-chart";
 import { TopProjectsChart } from "@/components/top-projects-chart";
-import { CodeBlock } from "@/components/code-block";
+import { QuickstartSnippet } from "@/components/quickstart-snippet";
 import { DashboardGreeting } from "@/components/dashboard-greeting";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -119,14 +119,7 @@ export default async function DashboardPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <CodeBlock
-              language="python"
-              code={`import sagea_cursus as cursus
-
-run = cursus.init(project="demo")
-cursus.log({"train/loss": 0.4}, step=1)
-cursus.finish()`}
-            />
+            <QuickstartSnippet project="demo" />
             <span className="flex flex-wrap gap-2 text-sm">
               <Link
                 href={`/${org.slug}/settings/keys`}

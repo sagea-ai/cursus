@@ -131,7 +131,9 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("button", { name: "Create key" }).click();
   await expect(page.getByText("you won't see this again")).toBeVisible();
   const firstPlaintext =
-    (await page.locator("code").last().textContent())?.trim() ?? "";
+    (
+      await page.getByRole("dialog").locator("code").first().textContent()
+    )?.trim() ?? "";
   expect(firstPlaintext).toMatch(/^cursus_/);
   await page.keyboard.press("Escape");
 
@@ -142,15 +144,17 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("button", { name: "Rotate key", exact: true }).click();
   await expect(page.getByText("Key rotated")).toBeVisible();
   const plaintext =
-    (await page.locator("code").last().textContent())?.trim() ?? "";
+    (
+      await page.getByRole("dialog").locator("code").first().textContent()
+    )?.trim() ?? "";
   expect(plaintext).toMatch(/^cursus_/);
   expect(plaintext).not.toBe(firstPlaintext);
   await page.keyboard.press("Escape");
 
   // Per-key history page shows the trail (created + rotated).
   await page.getByRole("link", { name: "History" }).click();
-  await expect(page.getByText("Created")).toBeVisible();
-  await expect(page.getByText("Rotated")).toBeVisible();
+  await expect(page.getByText("Created", { exact: true })).toBeVisible();
+  await expect(page.getByText("Rotated", { exact: true })).toBeVisible();
   await page.goBack();
 
   const deadCheck = await request.post("/api/v1/runs", {
@@ -590,7 +594,15 @@ test("critical journey: bootstrap to restricted member", async ({
     page.getByRole("cell", { name: "E2E Member Renamed" }),
   ).toBeVisible();
 
+  // 11b. Connect card: the deployment's base URL is visible and copyable.
+  await page.goto(`/${orgSlug}/settings/keys`);
+  await expect(page.getByText("Base URL")).toBeVisible();
+  await expect(
+    page.getByText("http://127.0.0.1:3100", { exact: true }),
+  ).toBeVisible();
+
   // 12. Viewer role: invite as viewer, accept, read everything, write nothing.
+  await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();
   await page.getByLabel("Email").fill(VIEWER.email);
   await page.getByLabel("Role").selectOption("VIEWER");

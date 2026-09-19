@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isNotFoundError } from "@/lib/http";
+import { deploymentBaseUrl } from "@/lib/deployment";
 import { listKeys } from "@/lib/keys";
 import { requirePageSession } from "@/lib/page-auth";
 import { getProjectOverview } from "@/lib/projects";
@@ -214,6 +215,7 @@ export default async function ProjectOverviewPage({
               keys={keyRows}
               isAdmin={session.role === "SUPER_ADMIN"}
               orgSlug={org.slug}
+              baseUrl={await deploymentBaseUrl()}
             />
           </div>
         </TabsContent>

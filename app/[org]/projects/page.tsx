@@ -1,6 +1,6 @@
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { ProjectsTable } from "@/components/projects-table";
-import { CodeBlock } from "@/components/code-block";
+import { QuickstartSnippet } from "@/components/quickstart-snippet";
 import {
   Card,
   CardContent,
@@ -41,14 +41,7 @@ export default async function ProjectsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CodeBlock
-              language="python"
-              code={`import sagea_cursus as cursus
-
-run = cursus.init(project="my-first-project")
-cursus.log({"train/loss": 0.4}, step=1)
-cursus.finish()`}
-            />
+            <QuickstartSnippet project="my-first-project" />
           </CardContent>
         </Card>
       ) : (

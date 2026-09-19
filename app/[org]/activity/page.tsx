@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ActivityChart } from "@/components/activity-chart";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
-import { CodeBlock } from "@/components/code-block";
+import { QuickstartSnippet } from "@/components/quickstart-snippet";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMixChart } from "@/components/status-mix-chart";
 import { TopProjectsChart } from "@/components/top-projects-chart";
@@ -215,14 +215,7 @@ export default async function ActivityPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <CodeBlock
-              language="python"
-              code={`import sagea_cursus as cursus
-
-run = cursus.init(project="demo")
-cursus.log({"train/loss": 0.4}, step=1)
-cursus.finish()`}
-            />
+            <QuickstartSnippet project="demo" />
             <span className="flex flex-wrap gap-3 text-sm">
               <Link
                 href={`/${org.slug}/settings/keys`}

@@ -1,4 +1,4 @@
-# Cursus self-host image (PRD §M4). Multi-stage:
+# Cursus self-host image. Multi-stage:
 #   builder — full install + prisma generate + next build (also runs one-shot
 #             `prisma migrate deploy` via the compose `migrate` service)
 #   runner  — production-only deps + built output, `next start`.

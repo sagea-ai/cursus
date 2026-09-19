@@ -14,7 +14,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 import { BsBoxes } from "react-icons/bs";
-
+import { MdStackedBarChart } from "react-icons/md";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,10 @@ const SECTIONS: {
 }[] = [
   {
     label: "Home",
-    items: [{ href: "dashboard", label: "Dashboard", icon: BsBoxes }],
+    items: [
+      { href: "dashboard", label: "Dashboard", icon: BsBoxes },
+      { href: "activity", label: "Your activity", icon: MdStackedBarChart },
+    ],
   },
   {
     label: "Experiments",

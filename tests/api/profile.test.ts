@@ -7,6 +7,8 @@ import {
 import { GET as activityGET } from "@/app/api/v1/profile/activity/route";
 import { GET as runsGET } from "@/app/api/v1/profile/runs/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
+import { POST as finishPOST } from "@/app/api/v1/runs/[runId]/finish/route";
+import { getActivityOverview } from "@/lib/profile";
 import { POST as groupsPOST } from "@/app/api/v1/groups/route";
 import { POST as addMemberPOST } from "@/app/api/v1/groups/[slug]/members/route";
 import { DELETE as removeMemberDELETE } from "@/app/api/v1/groups/[slug]/members/[userId]/route";
@@ -257,4 +259,68 @@ describe.skipIf(!apiTestsEnabled)("profile routes", () => {
       await org.cleanup();
     }
   });
+
+  it(
+    "overview counts own visible runs: streaks, compute, mix, top projects",
+    { timeout: 60_000 },
+    async () => {
+      const org = await createTestOrg("prof");
+      try {
+        const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
+        const mk = async (
+          session: typeof org.member,
+          project: string,
+          name: string,
+          startedAt: Date,
+        ) => {
+          const made = await runsPOST(
+            await authedRequest("/api/v1/runs", session, {
+              method: "POST",
+              body: { project, name },
+            }),
+          );
+          const runId = ((await made.json()) as { run_id: string }).run_id;
+          await db.run.update({
+            where: { id: runId },
+            data: { startedAt },
+          });
+          return runId;
+        };
+        // Three consecutive days (incl. today) in p1, one older run in p2.
+        await mk(org.member, "p1", "d3", ago(2));
+        await mk(org.member, "p1", "d2", ago(1));
+        const today = await mk(org.member, "p1", "d1", ago(0));
+        await mk(org.member, "p2", "old", ago(10));
+        // Someone else's run must not leak in.
+        await mk(org.admin, "p1", "not-mine", ago(0));
+        // Crash today's run.
+        await finishPOST(
+          await authedRequest(`/api/v1/runs/${today}/finish`, org.member, {
+            method: "POST",
+            body: { status: "crashed" },
+          }),
+          { params: Promise.resolve({ runId: today }) },
+        );
+
+        const o = await getActivityOverview(org.member);
+        expect(o.totalRuns).toBe(4);
+        expect(o.weekRuns).toBe(3);
+        expect(o.streaks).toEqual({
+          current: 3,
+          longest: 3,
+          activeDays: 4,
+        });
+        expect(o.crashed).toBe(1);
+        expect(o.statusMix.reduce((a, s) => a + s.count, 0)).toBe(4);
+        expect(o.topProjects.map((p) => p.slug)).toEqual(["p1", "p2"]);
+        expect(o.topProjects[0]!.runs).toBe(3);
+        expect(o.recentRuns.map((r) => r.name)).not.toContain("not-mine");
+        expect(o.totalComputeMs).toBeGreaterThanOrEqual(0);
+
+        await expect(getActivityOverview(null)).rejects.toThrow();
+      } finally {
+        await org.cleanup();
+      }
+    },
+  );
 });

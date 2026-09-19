@@ -1,4 +1,5 @@
 import { AuthError, requireAuth, type Session } from "@/lib/auth";
+import { computeStreaks, type Streaks } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { runVisibilityFilter } from "@/lib/groups";
 import type { UpdateProfileInput } from "@/lib/validation";
@@ -185,4 +186,101 @@ export async function listProfileRuns(
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
   }));
+}
+
+export interface ActivityTopProject {
+  slug: string;
+  name: string;
+  runs: number;
+}
+
+export interface ActivityOverview {
+  totalRuns: number;
+  weekRuns: number;
+  totalComputeMs: number;
+  crashed: number;
+  streaks: Streaks;
+  statusMix: { status: string; count: number }[];
+  topProjects: ActivityTopProject[];
+  activity: ActivityDay[];
+  recentRuns: ProfileRunRow[];
+}
+
+function spanMs(startedAt: Date, finishedAt: Date | null): number {
+  return Math.max(
+    0,
+    (finishedAt ?? new Date()).getTime() - startedAt.getTime(),
+  );
+}
+
+/** Everything the "Your activity" page needs. Same scoping as the profile
+ * reads (own runs, still visible to the caller), same bounded-query budget
+ * as the dashboard: one year aggregate (reused), one capped recents list
+ * (reused), two groupBys, one narrow durations scan, one name lookup. */
+export async function getActivityOverview(
+  session: Session | null,
+): Promise<ActivityOverview> {
+  requireAuth(session);
+  const scope = {
+    createdById: session.userId,
+    ...runVisibilityFilter(session),
+  };
+  const [activity, recentRuns, statusRows, topProjectRows, spans] =
+    await Promise.all([
+      getActivity(session, 365),
+      listProfileRuns(session, { limit: 8 }),
+      db.run.groupBy({
+        by: ["status"],
+        where: scope,
+        _count: { _all: true },
+      }),
+      db.run.groupBy({
+        by: ["projectId"],
+        where: scope,
+        _count: { _all: true },
+        orderBy: { _count: { projectId: "desc" } },
+        take: 6,
+      }),
+      db.run.findMany({
+        where: scope,
+        select: { startedAt: true, finishedAt: true },
+      }),
+    ]);
+
+  const projectNames = new Map(
+    (
+      await db.project.findMany({
+        where: {
+          orgId: session.orgId,
+          id: { in: topProjectRows.map((row) => row.projectId) },
+        },
+        select: { id: true, slug: true, name: true },
+      })
+    ).map((project) => [project.id, project] as const),
+  );
+
+  const totalRuns = statusRows.reduce((sum, row) => sum + row._count._all, 0);
+  return {
+    totalRuns,
+    weekRuns: activity.days.slice(-7).reduce((sum, d) => sum + d.count, 0),
+    totalComputeMs: spans.reduce(
+      (sum, span) => sum + spanMs(span.startedAt, span.finishedAt),
+      0,
+    ),
+    crashed:
+      statusRows.find((row) => row.status === "CRASHED")?._count._all ?? 0,
+    streaks: computeStreaks(activity.days),
+    statusMix: statusRows.map((row) => ({
+      status: row.status,
+      count: row._count._all,
+    })),
+    topProjects: topProjectRows.flatMap((row) => {
+      const project = projectNames.get(row.projectId);
+      return project
+        ? [{ slug: project.slug, name: project.name, runs: row._count._all }]
+        : [];
+    }),
+    activity: activity.days,
+    recentRuns,
+  };
 }

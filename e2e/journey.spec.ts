@@ -391,7 +391,7 @@ test("critical journey: bootstrap to restricted member", async ({
   // 9. Profile: identity, activity heatmap, editable bio, own runs.
   await page.goto(`/${orgSlug}/profile`);
   await expect(page.getByText(MEMBER.email).first()).toBeVisible();
-  await expect(page.getByText("Activity")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Activity/ })).toBeVisible();
   await expect(page.getByText("Recent runs")).toBeVisible();
   await page.getByRole("button", { name: "Edit profile" }).click();
   await page.getByLabel("Bio").fill("e2e bio");
@@ -409,6 +409,15 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("link", { name: "run-a-renamed" })).toHaveCount(
     0,
   );
+
+  // 9b. Your activity: personal streaks, grid, and project breakdown.
+  await page.goto(`/${orgSlug}/activity`);
+  await expect(
+    page.getByRole("heading", { name: /Your activity/ }),
+  ).toBeVisible();
+  await expect(page.getByText("Current streak")).toBeVisible();
+  await expect(page.getByText("Contribution grid")).toBeVisible();
+  await expect(page.getByText("Top projects")).toBeVisible();
 
   // 10. Admin renames the member from the Team row menu (members have no
   // self-service path — the name locked at invite accept).

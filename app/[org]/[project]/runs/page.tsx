@@ -57,6 +57,8 @@ export default async function RunsPage({
         sort={sort}
         basePath={`/${org.slug}/${projectSlug}/runs`}
         orgSlug={org.slug}
+        projectSlug={projectSlug}
+        canWrite={session.role !== "VIEWER"}
       />
     </main>
   );

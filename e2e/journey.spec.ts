@@ -406,6 +406,21 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("cell", { name: "sweep-trial-0" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "sweep-trial-3" })).toBeVisible();
 
+  // 6d. Bulk ops: tag two runs, delete a third, all from the table bar.
+  await page.goto(`/${orgSlug}/e2e-proj/runs`);
+  await page.getByRole("checkbox", { name: "Select run-a-renamed" }).check();
+  await page.getByRole("checkbox", { name: "Select run-b" }).check();
+  await page.getByLabel("Bulk tag").fill("e2e-bulk");
+  await page.getByRole("button", { name: "Tag", exact: true }).click();
+  await expect(page.getByText("e2e-bulk").first()).toBeVisible();
+  await page.getByRole("checkbox", { name: "Select sweep-trial-3" }).check();
+  await page.getByRole("button", { name: "Delete…" }).click();
+  await expect(page.getByText("Delete 1 runs?")).toBeVisible();
+  await page.getByRole("button", { name: "Delete runs" }).click();
+  await expect(page.getByRole("cell", { name: "sweep-trial-3" })).toHaveCount(
+    0,
+  );
+
   // 7. Invite a member; accept via link; land in dashboard.
   await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();

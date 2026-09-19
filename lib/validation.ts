@@ -99,6 +99,21 @@ export const setSweepStateSchema = z.object({
   state: z.enum(["FINISHED", "CANCELLED"]),
 });
 
+export const batchRunsSchema = z
+  .object({
+    ids: z.array(z.string().min(1).max(64)).min(1).max(100),
+    op: z.enum(["delete", "tag"]),
+    tags: z.array(z.string().min(1).max(64)).max(32).optional(),
+  })
+  .refine(
+    (b) => b.op !== "tag" || (b.tags !== undefined && b.tags.length > 0),
+    {
+      message: "tag op needs a non-empty tags array",
+    },
+  );
+
+export type BatchRunsInput = z.infer<typeof batchRunsSchema>;
+
 export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),

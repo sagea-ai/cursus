@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { FiGitMerge } from "react-icons/fi";
 
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -51,15 +53,24 @@ export function RunsTable({
   sort,
   basePath,
   orgSlug,
+  projectSlug,
+  canWrite,
 }: {
   runs: RunRow[];
   sort: string;
   basePath: string;
   orgSlug: string;
+  projectSlug: string;
+  canWrite: boolean;
 }) {
+  const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<string>("ALL");
   const [selected, setSelected] = React.useState<string[]>([]);
+  const [bulkTag, setBulkTag] = React.useState("");
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [bulkError, setBulkError] = React.useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const summaryKeys = React.useMemo(() => {
     const keys = new Set<string>();
@@ -78,13 +89,46 @@ export function RunsTable({
   });
 
   function toggle(id: string) {
+    // Compare takes 2–5; bulk ops take up to 100. One selection serves both.
     setSelected((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
-        : prev.length >= 5
+        : prev.length >= 100
           ? prev
           : [...prev, id],
     );
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.length === filtered.length ? [] : filtered.map((r) => r.id),
+    );
+  }
+
+  async function runBatch(op: "delete" | "tag") {
+    if (selected.length === 0) return;
+    if (op === "tag" && bulkTag.trim().length === 0) return;
+    setBulkBusy(true);
+    setBulkError(null);
+    const res = await fetch(`/api/v1/projects/${projectSlug}/runs/batch`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(
+        op === "tag"
+          ? { ids: selected, op, tags: [bulkTag.trim()] }
+          : { ids: selected, op },
+      ),
+    });
+    setBulkBusy(false);
+    if (!res.ok) {
+      const body = await res.json();
+      setBulkError(body.error ?? "Bulk action failed");
+      return;
+    }
+    setSelected([]);
+    setBulkTag("");
+    setConfirmDelete(false);
+    router.refresh();
   }
 
   return (
@@ -128,26 +172,80 @@ export function RunsTable({
         <div className="ml-auto">
           <Link
             href={
-              selected.length >= 2
+              selected.length >= 2 && selected.length <= 5
                 ? `${basePath}/compare?ids=${selected.join(",")}`
                 : "#"
             }
-            aria-disabled={selected.length < 2}
+            aria-disabled={selected.length < 2 || selected.length > 5}
             onClick={(e) => {
-              if (selected.length < 2) e.preventDefault();
+              if (selected.length < 2 || selected.length > 5)
+                e.preventDefault();
             }}
           >
-            <Button variant="secondary" disabled={selected.length < 2}>
+            <Button
+              variant="secondary"
+              disabled={selected.length < 2 || selected.length > 5}
+            >
               <FiGitMerge /> Compare ({selected.length})
             </Button>
           </Link>
         </div>
       </div>
 
+      {canWrite && selected.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+          <span className="text-xs font-medium">
+            {selected.length} selected
+          </span>
+          <Input
+            placeholder="Tag to add…"
+            value={bulkTag}
+            onChange={(e) => setBulkTag(e.target.value)}
+            aria-label="Bulk tag"
+            className="h-8 w-36 text-xs"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={bulkBusy || bulkTag.trim().length === 0}
+            onClick={() => void runBatch("tag")}
+          >
+            {bulkBusy ? "Tagging…" : "Tag"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={bulkBusy}
+            onClick={() => setConfirmDelete(true)}
+            className="text-warning"
+          >
+            Delete…
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
+            Clear
+          </Button>
+          {bulkError && (
+            <span role="alert" className="text-xs text-warning">
+              {bulkError}
+            </span>
+          )}
+        </div>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10" />
+            <TableHead className="w-10">
+              <input
+                type="checkbox"
+                aria-label="Select all runs"
+                checked={
+                  filtered.length > 0 && selected.length === filtered.length
+                }
+                onChange={toggleAll}
+                className="size-4 accent-[#1976FD]"
+              />
+            </TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Notes</TableHead>
@@ -247,8 +345,19 @@ export function RunsTable({
         </TableBody>
       </Table>
       <p className="text-xs text-muted-foreground">
-        Select 2–5 runs to compare.
+        Select 2–5 runs to compare, or bulk-tag/delete any selection.
       </p>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDelete(false);
+        }}
+        title={`Delete ${selected.length} runs?`}
+        description="Metrics go with them; artifact history is kept. This cannot be undone."
+        confirmLabel="Delete runs"
+        busy={bulkBusy}
+        onConfirm={() => void runBatch("delete")}
+      />
     </div>
   );
 }

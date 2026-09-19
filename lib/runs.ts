@@ -12,6 +12,7 @@ import {
 import { mergeSummary } from "@/lib/summary";
 import { slugify } from "@/lib/slug";
 import type {
+  BatchRunsInput,
   CreateRunInput,
   FinishRunInput,
   LogBatchInput,
@@ -494,4 +495,66 @@ export async function deleteRun(
   }
   await db.run.delete({ where: { id: runId } });
   return { id: runId };
+}
+
+/** Batch tag/delete over explicit ids (1–100). All-or-nothing: the runs
+ * are resolved in ONE visibility-scoped query and the count must match,
+ * so one hidden/foreign id fails the whole batch as 404 (no partial
+ * writes, no oracle). Delete purges media objects before rows cascade
+ * (metrics cascade, artifacts keep history via SetNull).
+ */
+export async function batchUpdateRuns(
+  auth: GroupAuth,
+  projectSlug: string,
+  input: BatchRunsInput,
+): Promise<{ affected: number }> {
+  requireRole(auth, "MEMBER");
+  const project = await db.project.findFirst({
+    where: {
+      orgId: auth.orgId,
+      slug: projectSlug,
+      ...projectVisibilityFilter(auth),
+    },
+    select: { id: true, groupId: true },
+  });
+  if (!project) throw new ApiError(404, "project not found");
+  if (project.groupId && !(await canWriteGroup(auth, project.groupId))) {
+    throw new ApiError(403, "not a member of this project's group");
+  }
+  const ids = [...new Set(input.ids)];
+  const rows = await db.run.findMany({
+    where: { id: { in: ids }, projectId: project.id },
+    select: { id: true, tags: true },
+  });
+  if (rows.length !== ids.length) {
+    throw new ApiError(404, "one or more runs not found");
+  }
+  if (input.op === "delete") {
+    const media = await db.mediaItem.findMany({
+      where: { runId: { in: ids } },
+      select: { storageKey: true },
+    });
+    if (media.length > 0) {
+      try {
+        const { deleteObjects } = await import("@/lib/storage");
+        await deleteObjects(media.map((m) => m.storageKey));
+      } catch {
+        // Best-effort — row deletes below still proceed.
+      }
+    }
+    const deleted = await db.run.deleteMany({
+      where: { id: { in: ids }, projectId: project.id },
+    });
+    return { affected: deleted.count };
+  }
+  const tags = input.tags ?? [];
+  await db.$transaction(
+    rows.map((row) =>
+      db.run.update({
+        where: { id: row.id },
+        data: { tags: [...new Set([...row.tags, ...tags])].slice(0, 32) },
+      }),
+    ),
+  );
+  return { affected: rows.length };
 }

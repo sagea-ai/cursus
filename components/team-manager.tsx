@@ -38,8 +38,15 @@ export interface MemberRow {
   email: string;
   name: string;
   role: "SUPER_ADMIN" | "MEMBER";
+  status: "active" | "pending" | "inactive";
   createdAt: string;
 }
+
+const STATUS_META = {
+  active: { label: "Active", variant: "active" as const },
+  pending: { label: "Pending", variant: "warning" as const },
+  inactive: { label: "Inactive", variant: "revoke" as const },
+};
 
 // Members see a read-only list (no action column at all — visibly obvious).
 // Super admins get invite + row actions.
@@ -60,6 +67,15 @@ export function TeamManager({
   const [deactivating, setDeactivating] = React.useState<{
     id: string;
     email: string;
+  } | null>(null);
+  const [renaming, setRenaming] = React.useState<{
+    id: string;
+    email: string;
+    name: string;
+  } | null>(null);
+  const [shareLink, setShareLink] = React.useState<{
+    email: string;
+    url: string;
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
@@ -112,6 +128,48 @@ export function TeamManager({
       return;
     }
     setDeactivating(null);
+    router.refresh();
+  }
+
+  // Reactivate an inactive member, or mint a fresh link for a pending one
+  // (the old link may have expired — tokens live 1 hour). Shows the link
+  // to copy, same as the invite flow.
+  async function runReactivate(id: string, email: string) {
+    setActionError(null);
+    setConfirmBusy(true);
+    const res = await fetch(`/api/v1/team/members/${id}/reactivate`, {
+      method: "POST",
+    });
+    setConfirmBusy(false);
+    if (!res.ok) {
+      const body = await res.json();
+      setActionError(body.error ?? "Could not reactivate");
+      return;
+    }
+    const body = await res.json();
+    setShareLink({
+      email,
+      url: `${window.location.origin}${body.inviteUrl}`,
+    });
+  }
+
+  async function runRename(e: React.FormEvent) {
+    e.preventDefault();
+    if (!renaming || renaming.name.trim().length === 0) return;
+    setConfirmBusy(true);
+    setActionError(null);
+    const res = await fetch(`/api/v1/team/members/${renaming.id}/name`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: renaming.name.trim() }),
+    });
+    setConfirmBusy(false);
+    if (!res.ok) {
+      const body = await res.json();
+      setActionError(body.error ?? "Could not rename");
+      return;
+    }
+    setRenaming(null);
     router.refresh();
   }
 
@@ -195,6 +253,7 @@ export function TeamManager({
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Joined</TableHead>
             {isAdmin && <TableHead className="w-16" />}
           </TableRow>
@@ -209,6 +268,11 @@ export function TeamManager({
                   variant={m.role === "SUPER_ADMIN" ? "default" : "secondary"}
                 >
                   {m.role === "SUPER_ADMIN" ? "super admin" : "member"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={STATUS_META[m.status].variant}>
+                  {STATUS_META[m.status].label}
                 </Badge>
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">
@@ -227,26 +291,64 @@ export function TeamManager({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {m.role === "MEMBER" ? (
-                        <DropdownMenuItem
-                          onClick={() => void setRole(m.id, "SUPER_ADMIN")}
-                        >
-                          Promote to super admin
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          onClick={() => void setRole(m.id, "MEMBER")}
-                        >
-                          Demote to member
-                        </DropdownMenuItem>
-                      )}
                       <DropdownMenuItem
                         onClick={() =>
-                          setDeactivating({ id: m.id, email: m.email })
+                          setRenaming({
+                            id: m.id,
+                            email: m.email,
+                            name: m.name,
+                          })
                         }
                       >
-                        Deactivate
+                        Rename
                       </DropdownMenuItem>
+                      {m.status === "active" && (
+                        <>
+                          {m.role === "MEMBER" ? (
+                            <DropdownMenuItem
+                              onClick={() => void setRole(m.id, "SUPER_ADMIN")}
+                            >
+                              Promote to super admin
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => void setRole(m.id, "MEMBER")}
+                            >
+                              Demote to member
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setDeactivating({ id: m.id, email: m.email })
+                            }
+                          >
+                            Deactivate
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {m.status === "pending" && (
+                        <>
+                          <DropdownMenuItem
+                            onClick={() => void runReactivate(m.id, m.email)}
+                          >
+                            Copy new invite link
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setDeactivating({ id: m.id, email: m.email })
+                            }
+                          >
+                            Revoke invite
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {m.status === "inactive" && (
+                        <DropdownMenuItem
+                          onClick={() => void runReactivate(m.id, m.email)}
+                        >
+                          Reactivate
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -275,6 +377,79 @@ export function TeamManager({
         busy={confirmBusy}
         onConfirm={() => void runDeactivate()}
       />
+      <Dialog
+        open={renaming !== null}
+        onOpenChange={(o) => {
+          if (!o) setRenaming(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename member</DialogTitle>
+            <DialogDescription>
+              {renaming ? `Change the display name for ${renaming.email}.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={runRename} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="rename-name">Display name</Label>
+              <Input
+                id="rename-name"
+                type="text"
+                required
+                maxLength={128}
+                value={renaming?.name ?? ""}
+                onChange={(e) =>
+                  setRenaming((r) => (r ? { ...r, name: e.target.value } : r))
+                }
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={confirmBusy}>
+                {confirmBusy ? "Saving…" : "Save name"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={shareLink !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setShareLink(null);
+            setCopied(false);
+            router.refresh();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite link</DialogTitle>
+            <DialogDescription>
+              {shareLink
+                ? `Send this to ${shareLink.email}. It expires after 1 hour.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {shareLink && (
+            <div className="flex flex-col gap-3">
+              <code className="break-all rounded-md bg-muted p-3 font-mono text-xs">
+                {shareLink.url}
+              </code>
+              <DialogFooter>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(shareLink.url);
+                    setCopied(true);
+                  }}
+                >
+                  <FiCopy /> {copied ? "Copied" : "Copy link"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

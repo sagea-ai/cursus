@@ -28,7 +28,7 @@ async function setup() {
     orgId: org.orgId,
     email,
   });
-  await acceptInvite({ token, password: "Test-password-1" });
+  await acceptInvite({ token, password: "Test-password-1", name: "Stranger" });
   const row = await db.user.findUniqueOrThrow({ where: { email } });
   const stranger: Session = {
     userId: row.id,

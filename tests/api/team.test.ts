@@ -4,7 +4,10 @@ import { GET as meGET } from "@/app/api/v1/auth/me/route";
 import { POST as invitePOST } from "@/app/api/v1/team/invite/route";
 import { GET as listGET } from "@/app/api/v1/team/members/route";
 import { DELETE as deleteMember } from "@/app/api/v1/team/members/[userId]/route";
+import { PATCH as renamePATCH } from "@/app/api/v1/team/members/[userId]/name/route";
+import { POST as reactivatePOST } from "@/app/api/v1/team/members/[userId]/reactivate/route";
 import { PATCH as rolePATCH } from "@/app/api/v1/team/members/[userId]/role/route";
+import { POST as acceptPOST } from "@/app/api/v1/auth/invites/accept/route";
 import { generateApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -217,6 +220,166 @@ describe.skipIf(!apiTestsEnabled)("team routes", () => {
         { params: Promise.resolve({ userId: org.admin.userId }) },
       );
       expect(self.status).toBe(409);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("member list carries active/pending/inactive statuses", async () => {
+    const org = await createTestOrg("team");
+    try {
+      const email = testEmail("pending-status");
+      await invitePOST(
+        await authedRequest("/api/v1/team/invite", org.admin, {
+          method: "POST",
+          body: { email },
+        }),
+      );
+      const byEmail = async () => {
+        const res = await listGET(
+          await authedRequest("/api/v1/team/members", org.admin),
+        );
+        expect(res.status).toBe(200);
+        return new Map(
+          (
+            (await res.json()).members as {
+              email: string;
+              status: string;
+            }[]
+          ).map((m) => [m.email, m.status] as const),
+        );
+      };
+      expect((await byEmail()).get(email)).toBe("pending");
+      expect((await byEmail()).get(org.member.email)).toBe("active");
+
+      await deleteMember(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}`,
+          org.admin,
+          { method: "DELETE" },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect((await byEmail()).get(org.member.email)).toBe("inactive");
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("reactivate re-invites inactive members; active → 409; member → 403", async () => {
+    const org = await createTestOrg("team");
+    try {
+      // A live (non-admin) member cannot reactivate a pending invite.
+      const pendingEmail = testEmail("pending-re");
+      const invited = await invitePOST(
+        await authedRequest("/api/v1/team/invite", org.admin, {
+          method: "POST",
+          body: { email: pendingEmail },
+        }),
+      );
+      const pendingId = ((await invited.json()) as { user: { id: string } })
+        .user.id;
+      const forbidden = await reactivatePOST(
+        await authedRequest(`/api/v1/team/members/${pendingId}`, org.member, {
+          method: "POST",
+        }),
+        { params: Promise.resolve({ userId: pendingId }) },
+      );
+      expect(forbidden.status).toBe(403);
+
+      await deleteMember(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}`,
+          org.admin,
+          { method: "DELETE" },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+
+      // Admin gets a fresh link; account is pending again.
+      const res = await reactivatePOST(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}`,
+          org.admin,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        user: { status: string };
+        inviteUrl: string;
+      };
+      expect(body.user.status).toBe("pending");
+      expect(body.inviteUrl).toContain("/invite/");
+
+      // The fresh link accepts with a name claim and restores access.
+      const token = body.inviteUrl.split("/").pop()!;
+      const accept = await acceptPOST(
+        apiRequest("/api/v1/auth/invites/accept", {
+          method: "POST",
+          body: {
+            token,
+            password: "Comeback-password-1",
+            name: "Returned Member",
+          },
+        }),
+      );
+      expect(accept.status).toBe(200);
+      expect(
+        ((await accept.json()) as { user: { name: string } }).user.name,
+      ).toBe("Returned Member");
+
+      // Reactivating an active account → 409.
+      const again = await reactivatePOST(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}`,
+          org.admin,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect(again.status).toBe(409);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("admin renames members; member → 403; blank → 400", async () => {
+    const org = await createTestOrg("team");
+    try {
+      const ok = await renamePATCH(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}/name`,
+          org.admin,
+          { method: "PATCH", body: { name: "  Renamed Member " } },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect(ok.status).toBe(200);
+      expect(((await ok.json()) as { user: { name: string } }).user.name).toBe(
+        "Renamed Member",
+      );
+
+      const forbidden = await renamePATCH(
+        await authedRequest(
+          `/api/v1/team/members/${org.admin.userId}/name`,
+          org.member,
+          { method: "PATCH", body: { name: "Hacked" } },
+        ),
+        { params: Promise.resolve({ userId: org.admin.userId }) },
+      );
+      expect(forbidden.status).toBe(403);
+
+      const blank = await renamePATCH(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}/name`,
+          org.admin,
+          { method: "PATCH", body: { name: "   " } },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect(blank.status).toBe(400);
     } finally {
       await org.cleanup();
     }

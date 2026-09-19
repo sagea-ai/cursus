@@ -5,6 +5,7 @@ import {
   hashPassword,
   INVITE_PENDING_HASH,
   isInvitePendingHash,
+  isUsablePasswordHash,
   lockedHash,
   verifyPassword,
 } from "@/lib/password";
@@ -24,12 +25,23 @@ import type {
 // (session → validate → call service → return); role checks go through
 // requireRole() only (§5.2), never inline comparisons.
 
+export type MemberStatus = "active" | "pending" | "inactive";
+
 export interface PublicUser {
   id: string;
   email: string;
   name: string;
   role: Session["role"];
+  status: MemberStatus;
   createdAt: Date;
+}
+
+/** Status derives from the password-hash sentinel — never a stored flag, so
+ * it can't drift from what the auth guards actually enforce. */
+export function statusOf(passwordHash: string): MemberStatus {
+  if (isInvitePendingHash(passwordHash)) return "pending";
+  if (!isUsablePasswordHash(passwordHash)) return "inactive";
+  return "active";
 }
 
 function toPublicUser(u: {
@@ -37,6 +49,7 @@ function toPublicUser(u: {
   email: string;
   name: string;
   role: Session["role"];
+  passwordHash: string;
   createdAt: Date;
 }): PublicUser {
   return {
@@ -44,6 +57,7 @@ function toPublicUser(u: {
     email: u.email,
     name: u.name,
     role: u.role,
+    status: statusOf(u.passwordHash),
     createdAt: u.createdAt,
   };
 }
@@ -176,7 +190,13 @@ export async function acceptInvite(
   try {
     updated = await db.user.update({
       where: { id: user.id, passwordHash: INVITE_PENDING_HASH },
-      data: { passwordHash: await hashPassword(input.password) },
+      // One-time name claim: the invitee sets their display name here, and
+      // this is the only self-service write to it — profile PATCH strips
+      // name, so it locks the moment the invite is accepted.
+      data: {
+        passwordHash: await hashPassword(input.password),
+        name: input.name,
+      },
     });
   } catch (e) {
     if (
@@ -222,7 +242,14 @@ export async function listMembers(
   const users = await db.user.findMany({
     where: { orgId: session.orgId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, name: true, role: true, createdAt: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      passwordHash: true,
+      createdAt: true,
+    },
   });
   return users.map(toPublicUser);
 }
@@ -289,10 +316,9 @@ export async function setMemberRole(
 }
 
 /** Deactivate: lock the account + revoke keys, keep the row for attribution.
- * One-way in v1: promoting a locked account does NOT unlock it (the sentinel
- * survives role changes, and locked hashes fail every guard) — there is no
- * reactivation path short of direct DB access. Deactivation is deliberate and
- * confirmed in the UI, so this is a safety property, not a gap.
+ * Reversible via reactivateMember below (issues a fresh invite link — the
+ * member sets a new password through the normal accept flow). Role changes
+ * never unlock: a locked sentinel survives setMemberRole.
  */
 export async function deactivateMember(
   session: Session | null,
@@ -322,4 +348,47 @@ export async function deactivateMember(
     }),
   ]);
   return { id: target.id };
+}
+
+/** Reactivate (or re-invite): reset a pending/inactive account back to the
+ * invite-pending state and issue a fresh 1h link. Active accounts 404 out
+ * with 409 — there is nothing to reactivate. Role is untouched; the admin
+ * manages it separately once the member accepts. */
+export async function reactivateMember(
+  session: Session | null,
+  targetUserId: string,
+): Promise<{ user: PublicUser; inviteUrl: string }> {
+  requireRole(session, "SUPER_ADMIN");
+  const target = await memberInOrg(session.orgId, targetUserId);
+  if (statusOf(target.passwordHash) === "active") {
+    throw new ApiError(409, "member is already active");
+  }
+  const user = await db.user.update({
+    where: { id: target.id },
+    data: { passwordHash: INVITE_PENDING_HASH },
+  });
+  const token = await signInviteToken({
+    userId: user.id,
+    orgId: session.orgId,
+    email: user.email,
+  });
+  return { user: toPublicUser(user), inviteUrl: `/invite/${token}` };
+}
+
+/** Admin rename: the only name write after the one-time invite claim.
+ * Members have no self-service path (profile PATCH strips name), so the
+ * name locks the moment the invite is accepted; admins can always fix it
+ * here. Name-less pending rows (never accepted) rename fine too. */
+export async function renameMember(
+  session: Session | null,
+  targetUserId: string,
+  name: string,
+): Promise<PublicUser> {
+  requireRole(session, "SUPER_ADMIN");
+  const target = await memberInOrg(session.orgId, targetUserId);
+  const updated = await db.user.update({
+    where: { id: target.id },
+    data: { name },
+  });
+  return toPublicUser(updated);
 }

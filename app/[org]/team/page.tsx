@@ -16,6 +16,7 @@ export default async function TeamPage({
     email: m.email,
     name: m.name,
     role: m.role,
+    status: m.status,
     createdAt: m.createdAt.toISOString(),
   }));
 

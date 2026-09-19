@@ -163,6 +163,10 @@ export const updateRoleSchema = z.object({
   role: z.enum(["SUPER_ADMIN", "MEMBER"]),
 });
 
+export const renameMemberSchema = z.object({
+  name: z.string().trim().min(1).max(128),
+});
+
 export const createKeySchema = z.object({
   label: z.string().min(1).max(128),
 });
@@ -202,6 +206,8 @@ export const onboardingSettingsSchema = z.object({
 export const acceptInviteSchema = z.object({
   token: z.string().min(1),
   password: passwordSchema,
+  // One-time display-name claim: required at accept, locked after.
+  name: z.string().trim().min(1).max(128),
 });
 
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;

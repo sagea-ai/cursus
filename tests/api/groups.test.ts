@@ -45,7 +45,7 @@ async function threePersonOrg(tag: string) {
     orgId: org.orgId,
     email,
   });
-  await acceptInvite({ token, password: "Test-password-1" });
+  await acceptInvite({ token, password: "Test-password-1", name: "Third" });
   const row = await db.user.findUniqueOrThrow({ where: { email } });
   const third: Session = {
     userId: row.id,

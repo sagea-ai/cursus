@@ -132,21 +132,33 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
     );
   });
 
-  it("invite accept sets password, logs in, and is single-use", async () => {
+  it("invite accept sets password, claims the name, logs in, is single-use", async () => {
     const org = await createTestOrg("auth");
     try {
       const email = testEmail("invitee");
       const { inviteUrl } = await inviteMember(org.admin, email);
       const token = inviteUrl.split("/").pop()!;
 
-      const first = await acceptPOST(
+      // Name is required at accept.
+      const nameless = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
           body: { token, password: "New-password-1" },
         }),
       );
+      expect(nameless.status).toBe(400);
+
+      const first = await acceptPOST(
+        apiRequest("/api/v1/auth/invites/accept", {
+          method: "POST",
+          body: { token, password: "New-password-1", name: "Invitee One" },
+        }),
+      );
       expect(first.status).toBe(200);
       expect(first.headers.get("set-cookie") ?? "").toContain(SESSION_COOKIE);
+      expect(
+        ((await first.json()) as { user: { name: string } }).user.name,
+      ).toBe("Invitee One");
 
       // New password works for login.
       const login = await loginPOST(
@@ -161,7 +173,11 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const reuse = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
-          body: { token, password: "Another-password-1" },
+          body: {
+            token,
+            password: "Another-password-1",
+            name: "Someone Else",
+          },
         }),
       );
       expect(reuse.status).toBe(410);
@@ -170,7 +186,11 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const bad = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
-          body: { token: "garbage", password: "Another-password-1" },
+          body: {
+            token: "garbage",
+            password: "Another-password-1",
+            name: "Nobody",
+          },
         }),
       );
       expect(bad.status).toBe(400);

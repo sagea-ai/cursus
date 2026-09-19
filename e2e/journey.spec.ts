@@ -212,7 +212,11 @@ test("critical journey: bootstrap to restricted member", async ({
   const inv2Url = ((await inv2.json()).inviteUrl as string) ?? "";
   const inv2Token = inv2Url.split("/").pop()!;
   const acc2 = await request.post("/api/v1/auth/invites/accept", {
-    data: { token: inv2Token, password: OUTSIDER.password },
+    data: {
+      token: inv2Token,
+      password: OUTSIDER.password,
+      name: "E2E Outsider",
+    },
   });
   expect(acc2.ok()).toBeTruthy();
 
@@ -342,6 +346,8 @@ test("critical journey: bootstrap to restricted member", async ({
 
   await page.goto(link);
   await expect(page.getByText(MEMBER.email)).toBeVisible();
+  // One-time name claim at accept — locked afterwards.
+  await page.getByLabel("Display name").fill("E2E Member");
   await page.getByLabel("Choose a password").fill(MEMBER.password);
   await page.getByLabel("Confirm password").fill(MEMBER.password);
   await page.getByRole("button", { name: "Set password and join" }).click();
@@ -355,6 +361,9 @@ test("critical journey: bootstrap to restricted member", async ({
     0,
   );
   await expect(page.getByRole("cell", { name: MEMBER.email })).toBeVisible();
+  // Claimed name at accept + Active status are visible to the member.
+  await expect(page.getByRole("cell", { name: "E2E Member" })).toBeVisible();
+  await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
   await page.goto(`/${orgSlug}/groups`);
   await expect(page.getByText("You are in no groups yet")).toBeVisible();
   await page.goto(`/${orgSlug}/e2e-proj/runs`);
@@ -400,4 +409,24 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("link", { name: "run-a-renamed" })).toHaveCount(
     0,
   );
+
+  // 10. Admin renames the member from the Team row menu (members have no
+  // self-service path — the name locked at invite accept).
+  await page.getByRole("button", { name: /Account:/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page).toHaveURL("/login");
+  await page.getByLabel("Email").fill(ADMIN.email);
+  await page.getByLabel("Password").fill(ADMIN.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(`/${orgSlug}/dashboard`);
+  await page.goto(`/${orgSlug}/team`);
+  await page
+    .getByRole("button", { name: `Actions for ${MEMBER.email}` })
+    .click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await page.getByLabel("Display name").fill("E2E Member Renamed");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(
+    page.getByRole("cell", { name: "E2E Member Renamed" }),
+  ).toBeVisible();
 });

@@ -42,8 +42,7 @@ for epoch in range(10):
     cursus.log_image("val/samples", f"preds_epoch{epoch}.png", step=epoch)
     if epoch == 5:
         cursus.config.update({"lr": 1e-5})  # synced back, debounced
-cursus.log_artifact("resnet50", "runs/best.pt", type="model",
-                    description="best val acc")
+cursus.log_artifact("resnet50", "runs/best.pt", type="model", description="best val acc")
 cursus.finish()
 ```
 
@@ -53,8 +52,7 @@ cursus.finish()
 import sagea_cursus as cursus
 
 # Log inside a group project (you must belong to the group).
-run = cursus.init(project="detection", group="vision-team",
-                  name="baseline-a", tags=["v2-data"])
+run = cursus.init(project="detection", group="vision-team", name="baseline-a", tags=["v2-data"])
 print("view at:", run.url)
 cursus.log({"map50": 0.61}, step=1)
 cursus.finish()
@@ -67,14 +65,16 @@ import sagea_cursus as cursus
 
 sweep = cursus.create_sweep(
     "demo",
-    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"},
-     "batch": {"values": [16, 32]}},
+    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"}, "batch": {"values": [16, 32]}},
     name="lr-search",
 )
 while (trial := cursus.next_trial(sweep["id"])) is not None:
-    run = cursus.init(project="demo", config=trial["config"],
-                      name=f"sweep-{trial['trial']}",
-                      sweep_id=trial["sweep_id"])
+    run = cursus.init(
+        project="demo",
+        config=trial["config"],
+        name=f"sweep-{trial['trial']}",
+        sweep_id=trial["sweep_id"],
+    )
     try:
         train(trial["config"])
         cursus.finish()

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sagea-ai/cursus/actions/workflows/ci.yml/badge.svg)](https://github.com/sagea-ai/cursus/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-SAGEA_Noncommercial-lightgrey.svg)](./LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/sagea-cursus.svg)](https://pypi.org/project/sagea-cursus/)
+[![PyPI](https://img.shields.io/pypi/v/sagea-cursus)](https://pypi.org/project/sagea-cursus/)
 
 ![Cursus banner](./assets/banner.png)
 

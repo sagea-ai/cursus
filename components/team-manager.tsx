@@ -68,6 +68,10 @@ export function TeamManager({
     id: string;
     email: string;
   } | null>(null);
+  const [deleting, setDeleting] = React.useState<{
+    id: string;
+    email: string;
+  } | null>(null);
   const [renaming, setRenaming] = React.useState<{
     id: string;
     email: string;
@@ -151,6 +155,23 @@ export function TeamManager({
       email,
       url: `${window.location.origin}${body.inviteUrl}`,
     });
+  }
+
+  async function runDelete() {
+    if (!deleting) return;
+    setConfirmBusy(true);
+    setActionError(null);
+    const res = await fetch(`/api/v1/team/members/${deleting.id}/delete`, {
+      method: "POST",
+    });
+    setConfirmBusy(false);
+    if (!res.ok) {
+      const body = await res.json();
+      setActionError(body.error ?? "Could not delete");
+      return;
+    }
+    setDeleting(null);
+    router.refresh();
   }
 
   async function runRename(e: React.FormEvent) {
@@ -324,6 +345,13 @@ export function TeamManager({
                           >
                             Deactivate
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setDeleting({ id: m.id, email: m.email })
+                            }
+                          >
+                            Delete…
+                          </DropdownMenuItem>
                         </>
                       )}
                       {m.status === "pending" && (
@@ -340,14 +368,30 @@ export function TeamManager({
                           >
                             Revoke invite
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setDeleting({ id: m.id, email: m.email })
+                            }
+                          >
+                            Delete…
+                          </DropdownMenuItem>
                         </>
                       )}
                       {m.status === "inactive" && (
-                        <DropdownMenuItem
-                          onClick={() => void runReactivate(m.id, m.email)}
-                        >
-                          Reactivate
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem
+                            onClick={() => void runReactivate(m.id, m.email)}
+                          >
+                            Reactivate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setDeleting({ id: m.id, email: m.email })
+                            }
+                          >
+                            Delete…
+                          </DropdownMenuItem>
+                        </>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -376,6 +420,21 @@ export function TeamManager({
         confirmLabel="Deactivate"
         busy={confirmBusy}
         onConfirm={() => void runDeactivate()}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleting(null);
+        }}
+        title="Delete account"
+        description={
+          deleting
+            ? `Permanently delete ${deleting.email}? Their runs, artifacts, groups, and audit entries will be reassigned to you, and their API keys removed. This cannot be undone — deactivate instead to keep the account.`
+            : ""
+        }
+        confirmLabel="Delete permanently"
+        busy={confirmBusy}
+        onConfirm={() => void runDelete()}
       />
       <Dialog
         open={renaming !== null}

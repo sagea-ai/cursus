@@ -350,6 +350,52 @@ export async function deactivateMember(
   return { id: target.id };
 }
 
+/** Hard delete: remove the account row entirely. API keys and group
+ * memberships cascade; owned content (runs, artifacts, groups) and audit
+ * entries are RESTRICT-bound, so they are reassigned to the acting admin
+ * first — experiment data is never destroyed with the account. Same
+ * self/last-admin guards as deactivation. Prefer deactivate when the row
+ * (and its true attribution) should survive.
+ */
+export async function deleteMember(
+  session: Session | null,
+  targetUserId: string,
+): Promise<{ id: string }> {
+  requireRole(session, "SUPER_ADMIN");
+  const target = await memberInOrg(session.orgId, targetUserId);
+  if (target.id === session.userId) {
+    throw new ApiError(409, "cannot delete yourself");
+  }
+  if (target.role === "SUPER_ADMIN") {
+    const admins = await db.user.count({
+      where: { orgId: session.orgId, role: "SUPER_ADMIN" },
+    });
+    if (admins <= 1) {
+      throw new ApiError(409, "cannot delete the last super admin");
+    }
+  }
+  await db.$transaction([
+    db.run.updateMany({
+      where: { createdById: target.id },
+      data: { createdById: session.userId },
+    }),
+    db.artifact.updateMany({
+      where: { createdById: target.id },
+      data: { createdById: session.userId },
+    }),
+    db.group.updateMany({
+      where: { createdById: target.id },
+      data: { createdById: session.userId },
+    }),
+    db.auditEvent.updateMany({
+      where: { actorId: target.id },
+      data: { actorId: session.userId },
+    }),
+    // Keys + group memberships cascade; the row goes last.
+    db.user.delete({ where: { id: target.id } }),
+  ]);
+  return { id: target.id };
+}
 /** Reactivate (or re-invite): reset a pending/inactive account back to the
  * invite-pending state and issue a fresh 1h link. Active accounts 404 out
  * with 409 — there is nothing to reactivate. Role is untouched; the admin

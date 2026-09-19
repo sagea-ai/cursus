@@ -8,6 +8,7 @@ import { PATCH as renamePATCH } from "@/app/api/v1/team/members/[userId]/name/ro
 import { POST as reactivatePOST } from "@/app/api/v1/team/members/[userId]/reactivate/route";
 import { PATCH as rolePATCH } from "@/app/api/v1/team/members/[userId]/role/route";
 import { POST as acceptPOST } from "@/app/api/v1/auth/invites/accept/route";
+import { POST as deletePOST } from "@/app/api/v1/team/members/[userId]/delete/route";
 import { generateApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -382,6 +383,132 @@ describe.skipIf(!apiTestsEnabled)("team routes", () => {
       expect(blank.status).toBe(400);
     } finally {
       await org.cleanup();
+    }
+  });
+
+  it("delete removes the row, cascades, reassigns content to the admin", async () => {
+    const org = await createTestOrg("team");
+    try {
+      // Member owns a key, a run, a group membership, and an audit entry.
+      const key = await db.apiKey.create({
+        data: {
+          orgId: org.orgId,
+          userId: org.member.userId,
+          keyHash: `delete-${Math.random()}`,
+          label: "member-key",
+        },
+      });
+      const project = await db.project.create({
+        data: { orgId: org.orgId, slug: "pdel", name: "pdel" },
+      });
+      const run = await db.run.create({
+        data: {
+          projectId: project.id,
+          name: "r-del",
+          createdById: org.member.userId,
+        },
+      });
+      const group = await db.group.create({
+        data: {
+          orgId: org.orgId,
+          slug: "gdel",
+          name: "gdel",
+          createdById: org.member.userId,
+        },
+      });
+      await db.groupMember.create({
+        data: { groupId: group.id, userId: org.member.userId },
+      });
+      await db.auditEvent.create({
+        data: {
+          orgId: org.orgId,
+          actorId: org.member.userId,
+          action: "test.action",
+          targetType: "test",
+        },
+      });
+
+      const res = await deletePOST(
+        await authedRequest(
+          `/api/v1/team/members/${org.member.userId}/delete`,
+          org.admin,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: org.member.userId }) },
+      );
+      expect(res.status).toBe(200);
+
+      // Row gone; keys + memberships cascaded.
+      expect(
+        await db.user.findUnique({ where: { id: org.member.userId } }),
+      ).toBeNull();
+      expect(await db.apiKey.findUnique({ where: { id: key.id } })).toBeNull();
+      expect(
+        await db.groupMember.findFirst({
+          where: { groupId: group.id, userId: org.member.userId },
+        }),
+      ).toBeNull();
+      // Content survives, reassigned to the acting admin.
+      expect(
+        (await db.run.findUniqueOrThrow({ where: { id: run.id } })).createdById,
+      ).toBe(org.admin.userId);
+      expect(
+        (await db.group.findUniqueOrThrow({ where: { id: group.id } }))
+          .createdById,
+      ).toBe(org.admin.userId);
+      expect(
+        await db.auditEvent.count({
+          where: { actorId: org.member.userId },
+        }),
+      ).toBe(0);
+
+      // Deleted cookie is dead.
+      const dead = await listGET(
+        await authedRequest("/api/v1/team/members", org.member),
+      );
+      expect(dead.status).toBe(401);
+
+      // Self-delete → 409.
+      const self = await deletePOST(
+        await authedRequest(
+          `/api/v1/team/members/${org.admin.userId}/delete`,
+          org.admin,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: org.admin.userId }) },
+      );
+      expect(self.status).toBe(409);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("delete: member → 403; cross-org → 404", async () => {
+    const a = await createTestOrg("teamA");
+    const b = await createTestOrg("teamB");
+    try {
+      const forbidden = await deletePOST(
+        await authedRequest(
+          `/api/v1/team/members/${a.admin.userId}/delete`,
+          a.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: a.admin.userId }) },
+      );
+      expect(forbidden.status).toBe(403);
+
+      const cross = await deletePOST(
+        await authedRequest(
+          `/api/v1/team/members/${b.member.userId}/delete`,
+          a.admin,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ userId: b.member.userId }) },
+      );
+      expect(cross.status).toBe(404);
+    } finally {
+      await a.cleanup();
+      await b.cleanup();
     }
   });
 

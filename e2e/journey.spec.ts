@@ -429,4 +429,19 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(
     page.getByRole("cell", { name: "E2E Member Renamed" }),
   ).toBeVisible();
+
+  // 11. Admin hard-deletes the outsider from the Team row menu: confirm
+  // dialog, row gone, everyone else stays.
+  await page
+    .getByRole("button", { name: `Actions for ${OUTSIDER.email}` })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
+  await expect(page.getByText("Delete account")).toBeVisible();
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(
+    page.getByRole("cell", { name: OUTSIDER.email, exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("cell", { name: "E2E Member Renamed" }),
+  ).toBeVisible();
 });

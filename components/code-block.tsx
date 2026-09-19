@@ -12,6 +12,22 @@ SyntaxHighlighter.registerLanguage("bash", bash);
 
 type SupportedLanguage = "python" | "bash";
 
+// Warm near-black to sit on the light UI. Set on both Prism selectors —
+// v16 resolves the <pre> background from the code selector, so customStyle
+// alone does not win.
+const BLOCK_BACKGROUND = "#1c1917";
+const blockStyle = {
+  ...oneDark,
+  'code[class*="language-"]': {
+    ...oneDark['code[class*="language-"]'],
+    background: BLOCK_BACKGROUND,
+  },
+  'pre[class*="language-"]': {
+    ...oneDark['pre[class*="language-"]'],
+    background: BLOCK_BACKGROUND,
+  },
+};
+
 // Dark code block with a copy button. Client-rendered (clipboard needs the
 // browser); the light Prism build ships only the two registered grammars.
 export function CodeBlock({
@@ -44,13 +60,13 @@ export function CodeBlock({
     <div className="relative">
       <SyntaxHighlighter
         language={language}
-        style={oneDark}
+        style={blockStyle}
         customStyle={{
           margin: 0,
           padding: "1rem",
           paddingRight: "3rem",
           borderRadius: "0.5rem",
-          background: "#2e3238ff",
+          background: BLOCK_BACKGROUND,
           fontSize: "0.75rem",
           lineHeight: "1.625",
         }}

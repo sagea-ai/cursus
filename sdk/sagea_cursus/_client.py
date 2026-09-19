@@ -94,6 +94,7 @@ class CursusClient:
         config: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         group: str | None = None,
+        sweep_id: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "project": project,
@@ -103,6 +104,8 @@ class CursusClient:
         }
         if group:
             body["group"] = group
+        if sweep_id:
+            body["sweep_id"] = sweep_id
         resp = self._session.post(
             f"{self.base_url}/api/v1/runs",
             json=body,
@@ -155,6 +158,32 @@ class CursusClient:
             f"{self.base_url}/api/v1/runs/{run_id}/media/{media_id}/complete",
             timeout=self.timeout,
         )
+        resp.raise_for_status()
+        return resp.json()
+
+    def create_sweep(
+        self,
+        project: str,
+        name: str,
+        method: str,
+        space: dict[str, Any],
+    ) -> dict[str, Any]:
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/projects/{project}/sweeps",
+            json={"name": name, "method": method, "space": space},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def next_trial(self, sweep_id: str) -> dict[str, Any] | None:
+        """Next config, or None when the sweep is done (HTTP 204)."""
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/sweeps/{sweep_id}/next",
+            timeout=self.timeout,
+        )
+        if resp.status_code == 204:
+            return None
         resp.raise_for_status()
         return resp.json()
 

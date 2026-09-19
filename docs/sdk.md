@@ -152,6 +152,31 @@ cursus.log_image("val/samples", "pred_epoch3.png", step=3)
 - View images on the run's Charts tab: one image at a time with a step
   scrubber, per key.
 
+## Sweeps — grid/random search
+
+```python
+sweep = cursus.create_sweep(
+    "demo",
+    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"},
+     "batch": {"values": [16, 32]}},
+)
+while (trial := cursus.next_trial(sweep["id"])) is not None:
+    run = cursus.init(project="demo", config=trial["config"],
+                      name=f"sweep-{trial['trial']}",
+                      sweep_id=trial["sweep_id"])
+    train(trial["config"])
+    cursus.finish()
+```
+
+- `create_sweep(project, space, name=None, method="random")`: grid needs
+  `{"values": [...]}` on every dim (≤10k combinations); random also takes
+  `{"min": .., "max": .., "scale": "linear"|"log"}`. May raise like `init()`.
+- `next_trial(sweep_id)` claims the next config (transactionally for
+  grid — concurrent workers never share a cell) or returns `None` when
+  the grid is exhausted or the sweep finished/cancelled: clean loop exit.
+- Link runs with `init(..., sweep_id=...)` — validated same-project and
+  still running. Trials appear on the sweep's page with their configs.
+
 ## Heartbeats and stale runs
 
 While a run is active the SDK heartbeats every 30 seconds on a daemon

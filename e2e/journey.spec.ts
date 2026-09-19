@@ -366,6 +366,45 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
   await expect(page.getByAltText("val/samples at step 1")).toBeVisible();
 
+  // 6c. Sweeps: 2x2 grid via API, four linked trials, detail lists them.
+  const sw = await request.post(`/api/v1/projects/e2e-proj/sweeps`, {
+    headers: { Cookie: adminCookie },
+    data: {
+      name: "e2e-grid",
+      method: "GRID",
+      space: { lr: { values: [0.1, 0.2] }, bs: { values: [16, 32] } },
+    },
+  });
+  expect(sw.ok()).toBeTruthy();
+  const sweepId = ((await sw.json()) as { id: string }).id;
+  for (let i = 0; i < 4; i++) {
+    const trial = await request.post(`/api/v1/sweeps/${sweepId}/next`, {
+      headers: { Cookie: adminCookie },
+    });
+    expect(trial.ok()).toBeTruthy();
+    const { config } = (await trial.json()) as {
+      config: Record<string, number>;
+    };
+    const tr = await request.post("/api/v1/runs", {
+      headers: { Cookie: adminCookie },
+      data: {
+        project: "e2e-proj",
+        name: `sweep-trial-${i}`,
+        config,
+        sweep_id: sweepId,
+      },
+    });
+    expect(tr.ok()).toBeTruthy();
+  }
+  const exhausted = await request.post(`/api/v1/sweeps/${sweepId}/next`, {
+    headers: { Cookie: adminCookie },
+  });
+  expect(exhausted.status()).toBe(204);
+  await page.goto(`/${orgSlug}/e2e-proj/sweeps/${sweepId}`);
+  await expect(page.getByRole("heading", { name: "e2e-grid" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "sweep-trial-0" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "sweep-trial-3" })).toBeVisible();
+
   // 7. Invite a member; accept via link; land in dashboard.
   await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();

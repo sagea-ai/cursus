@@ -133,9 +133,14 @@ export async function createRun(
     }
   }
   const name = input.name ?? `run-${shortId()}`;
+  if (input.sweep_id !== undefined) {
+    const { assertSweepLinkable } = await import("@/lib/sweeps");
+    await assertSweepLinkable(auth.orgId, project.id, input.sweep_id);
+  }
   const run = await db.run.create({
     data: {
       projectId: project.id,
+      sweepId: input.sweep_id ?? null,
       name,
       config: (input.config ?? {}) as object,
       tags: input.tags ?? [],

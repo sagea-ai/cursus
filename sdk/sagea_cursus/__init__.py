@@ -18,7 +18,16 @@ from ._media import MAX_BYTES as _MAX_IMAGE_BYTES
 from ._media import encode_image
 from ._run import Run, _clear_current, _get_current, _set_current
 
-__all__ = ["config", "finish", "init", "log", "log_artifact", "log_image"]
+__all__ = [
+    "config",
+    "create_sweep",
+    "finish",
+    "init",
+    "log",
+    "log_artifact",
+    "log_image",
+    "next_trial",
+]
 
 config: dict[str, Any] = {}
 
@@ -29,6 +38,7 @@ def init(
     name: str | None = None,
     tags: list[str] | None = None,
     group: str | None = None,
+    sweep_id: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> Run:
@@ -68,6 +78,7 @@ def init(
         config=config or {},
         tags=tags or [],
         group=group,
+        sweep_id=sweep_id,
     )
     run = Run(
         client=client,
@@ -191,3 +202,50 @@ def log_image(
     except Exception as exc:  # noqa: BLE001 — never crash training
         warnings.warn(f"cursus: log_image() failed (dropped): {exc}")
         return None
+
+
+def _sweep_client(api_key: str | None, base_url: str | None) -> CursusClient:
+    client = CursusClient(api_key=api_key, base_url=base_url)
+    if not client.api_key:
+        raise RuntimeError(
+            "Missing Cursus API key. Set CURSUS_API_KEY, pass api_key=..., "
+            "or write ~/.cursus/config."
+        )
+    client.check_version()
+    return client
+
+
+def create_sweep(
+    project: str,
+    space: dict[str, Any],
+    name: str | None = None,
+    method: str = "random",
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    """Create a sweep and return it (including ``id``).
+
+    ``space`` maps names to ``{"values": [...]}`` (choice) or
+    ``{"min": .., "max": .., "scale": "linear"|"log"}`` (random only).
+    May raise like ``init()`` — sweeps are control calls, not logging.
+    """
+    client = _sweep_client(api_key, base_url)
+    return client.create_sweep(
+        project=project,
+        name=name or f"sweep-{project}",
+        method=method.upper(),
+        space=space,
+    )
+
+
+def next_trial(
+    sweep_id: str,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any] | None:
+    """Claim the next trial config, or None when the sweep is exhausted
+    (grid done, or sweep finished/cancelled). May raise on transport
+    errors — retry or abort the worker loop as you see fit.
+    """
+    client = _sweep_client(api_key, base_url)
+    return client.next_trial(sweep_id)

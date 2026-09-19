@@ -76,6 +76,7 @@ model User {
   runsCreated      Run[]
   artifactsCreated Artifact[]
   webhooksCreated  Webhook[]
+  sweepsCreated    Sweep[]
   groupsCreated Group[]
   groupMemberships GroupMember[]
   auditActions AuditEvent[]
@@ -114,6 +115,7 @@ model Project {
   runs      Run[]
   artifacts Artifact[]
   webhooks  Webhook[]
+  sweeps    Sweep[]
 
   @@unique([orgId, slug])
   @@index([groupId])
@@ -123,6 +125,8 @@ model Run {
   id          String    @id @default(cuid())
   projectId   String
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sweepId     String?
+  sweep       Sweep?    @relation(fields: [sweepId], references: [id], onDelete: SetNull)
   name        String
   // Free-text notes (W&B "Add notes..." column). Edited on the run detail
   // Overview tab, displayed truncated in the run table.
@@ -275,6 +279,40 @@ model Webhook {
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+
+  @@index([projectId])
+}
+
+// --- Sweeps ---------------------------------------------------------------
+// Minimal hyperparameter search: grid + random over a declared space, with
+// a worker-pull loop in the SDK. No Bayesian optimizer, no hosted launcher
+// (bring your own runner). Grid claims are transactional (cursor advance).
+// Deleting a sweep unlinks runs (SetNull) — never deletes them.
+
+enum SweepMethod {
+  GRID
+  RANDOM
+}
+
+enum SweepState {
+  RUNNING
+  FINISHED
+  CANCELLED
+}
+
+model Sweep {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  method      SweepMethod
+  space       Json
+  state       SweepState @default(RUNNING)
+  cursor      Int        @default(0)
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  runs        Run[]
 
   @@index([projectId])
 }

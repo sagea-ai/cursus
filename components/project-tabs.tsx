@@ -22,6 +22,11 @@ export function ProjectTabs({
       href: `/${orgSlug}/${projectSlug}/artifacts`,
       exact: false,
     },
+    {
+      label: "Sweeps",
+      href: `/${orgSlug}/${projectSlug}/sweeps`,
+      exact: false,
+    },
   ];
   return (
     <nav className="flex gap-1 border-b border-border" aria-label="Project">

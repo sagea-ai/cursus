@@ -32,11 +32,13 @@ class FakeClient:
 def test_public_surface_is_barebones() -> None:
     assert sorted(cursus.__all__) == [
         "config",
+        "create_sweep",
         "finish",
         "init",
         "log",
         "log_artifact",
         "log_image",
+        "next_trial",
     ]
 
 
@@ -231,3 +233,50 @@ def test_log_image_drops_oversize_and_failures(monkeypatch, tmp_path) -> None:
         assert any("bad input" in str(w.message) for w in caught)
     finally:
         run_mod._set_current(None)
+
+
+def test_sweep_create_and_next_trial(monkeypatch) -> None:
+    calls = {}
+
+    class FakeSweepClient:
+        def __init__(self, api_key=None, base_url=None):
+            self.api_key = api_key or "k"
+
+        def check_version(self) -> None:
+            pass
+
+        def create_sweep(self, project, name, method, space):
+            calls["create"] = {
+                "project": project,
+                "name": name,
+                "method": method,
+                "space": space,
+            }
+            return {"id": "sw1", "name": name}
+
+        def next_trial(self, sweep_id):
+            calls["next"] = sweep_id
+            return {"trial": 0, "config": {"lr": 0.1}, "sweep_id": sweep_id}
+
+    monkeypatch.setattr(cursus, "CursusClient", FakeSweepClient)
+    sw = cursus.create_sweep("p", {"lr": {"values": [0.1, 0.2]}}, api_key="k")
+    assert sw["id"] == "sw1"
+    assert calls["create"]["method"] == "RANDOM"
+    trial = cursus.next_trial("sw1", api_key="k")
+    assert trial == {"trial": 0, "config": {"lr": 0.1}, "sweep_id": "sw1"}
+
+
+def test_next_trial_204_means_exhausted() -> None:
+    from types import SimpleNamespace
+
+    from sagea_cursus._client import CursusClient
+
+    class Gone:
+        status_code = 204
+
+        def raise_for_status(self) -> None:
+            raise AssertionError("must not raise on 204")
+
+    client = CursusClient(api_key="k")
+    client._session = SimpleNamespace(post=lambda *a, **k: Gone())
+    assert client.next_trial("sw1") is None

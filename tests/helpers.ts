@@ -77,7 +77,7 @@ export async function createTestOrg(tag: string): Promise<TestOrg> {
       role: "MEMBER",
     },
     cleanup: async () => {
-      // Runs, artifacts, and webhooks reference their creators with
+      // Runs, artifacts, webhooks, and sweeps reference their creators with
       // Restrict FKs (attribution/history must never cascade away), so
       // delete them before the org cascade removes users/projects.
       await db.run.deleteMany({ where: { project: { orgId: org.id } } });
@@ -85,6 +85,9 @@ export async function createTestOrg(tag: string): Promise<TestOrg> {
         where: { project: { orgId: org.id } },
       });
       await db.webhook.deleteMany({
+        where: { project: { orgId: org.id } },
+      });
+      await db.sweep.deleteMany({
         where: { project: { orgId: org.id } },
       });
       await db.org.delete({ where: { id: org.id } });

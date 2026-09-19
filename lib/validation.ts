@@ -23,6 +23,8 @@ export const createRunSchema = z.object({
   // Optional group slug: the run is then visible only to group members
   // (and super admins). Caller must belong to the group.
   group: z.string().min(1).max(128).optional(),
+  // Optional sweep link: validated same-project + RUNNING at creation.
+  sweep_id: z.string().min(1).max(64).optional(),
 });
 
 export type CreateRunInput = z.infer<typeof createRunSchema>;
@@ -65,6 +67,37 @@ export const createWebhookSchema = z.object({
 });
 
 export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
+
+const sweepDimSchema = z.union([
+  z.object({
+    values: z
+      .array(z.union([z.string(), z.number(), z.boolean()]))
+      .min(2)
+      .max(50),
+  }),
+  z.object({
+    min: z.number().finite(),
+    max: z.number().finite(),
+    scale: z.enum(["linear", "log"]).optional(),
+  }),
+]);
+
+export const createSweepSchema = z.object({
+  name: z.string().min(1).max(128),
+  method: z.enum(["GRID", "RANDOM"]),
+  space: z.record(z.string(), sweepDimSchema),
+});
+
+export type CreateSweepInput = z.infer<typeof createSweepSchema>;
+export type SweepSpace = Record<
+  string,
+  | { values: (string | number | boolean)[] }
+  | { min: number; max: number; scale?: "linear" | "log" }
+>;
+
+export const setSweepStateSchema = z.object({
+  state: z.enum(["FINISHED", "CANCELLED"]),
+});
 
 export const updateRunSchema = z
   .object({

@@ -135,6 +135,23 @@ cursus.log_artifact("dataset", ["train.csv", "val.csv"], type="dataset")
   use a longer (120 s) timeout.
 - Call before `finish()` — versions record the producing run.
 
+## `log_image()` — log images
+
+```python
+cursus.log_image("val/samples", "pred_epoch3.png", step=3)
+```
+
+- `image` is a file path, raw PNG/JPEG/WEBP bytes, a PIL Image, or a numpy
+  array (the last two need pillow installed — it stays an optional,
+  lazily-imported extra, never a hard dependency).
+- Images upload **direct to object storage** over a short-lived presigned
+  URL (plain `requests` PUT, no boto) — the server only signs. Caps: 5 MB
+  per image, 500 images per run; re-logging a `(key, step)` overwrites.
+- Same never-raises contract: bad inputs, oversize files, and network
+  failures warn and drop. Returns the completed media payload, or `None`.
+- View images on the run's Charts tab: one image at a time with a step
+  scrubber, per key.
+
 ## Heartbeats and stale runs
 
 While a run is active the SDK heartbeats every 30 seconds on a daemon

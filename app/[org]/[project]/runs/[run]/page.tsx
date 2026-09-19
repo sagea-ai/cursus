@@ -3,13 +3,16 @@ import { notFound } from "next/navigation";
 
 import { ConfigViewer } from "@/components/config-viewer";
 import { ExportMenu } from "@/components/export-menu";
+import { MediaViewer } from "@/components/media-viewer";
 import { RunCharts } from "@/components/run-charts";
 import { RunHeaderEditor } from "@/components/run-header-editor";
 import { RunOverview } from "@/components/run-overview";
 import { StatusBadge } from "@/components/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isNotFoundError } from "@/lib/http";
+import { getRunMediaView } from "@/lib/media";
 import { requirePageSession } from "@/lib/page-auth";
+import { storageEnabled } from "@/lib/storage";
 import { getRunArtifacts } from "@/lib/artifacts";
 import { getRun } from "@/lib/runs";
 
@@ -28,6 +31,17 @@ export default async function RunDetailPage({
     throw e;
   }
   const produced = await getRunArtifacts(session, detail.id);
+  // Media viewer data rides along (presigned step URLs, 15 min). Empty for
+  // runs without images — the Charts tab simply shows no media section.
+  // Skipped entirely where object storage isn't configured (media is
+  // unavailable there by design, and the run page must not 503 for it).
+  let media: {
+    key: string;
+    steps: { id: string; step: number; url: string }[];
+  }[] = [];
+  if (storageEnabled()) {
+    media = await getRunMediaView(session, detail.id);
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-8">
@@ -73,6 +87,13 @@ export default async function RunDetailPage({
             metricKeys={detail.keys}
             live={detail.status === "RUNNING"}
           />
+          {media.length > 0 && (
+            <div className="mt-5 flex flex-col gap-5">
+              {media.map((m) => (
+                <MediaViewer key={m.key} mediaKey={m.key} steps={m.steps} />
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="overview">
           <RunOverview

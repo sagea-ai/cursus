@@ -1,10 +1,18 @@
 # Cursus architecture
 
-Two components, one repo:
+Two components, one repo, two stores:
 
 ```
 Python SDK ──HTTPS/JSON──▶ Next.js app (dashboard + API routes) ──▶ Postgres 16+
+                                                                    └▶ S3 object storage
 ```
+
+Postgres holds metadata + small relational rows. Large bytes (logged
+images today, bulk exports tomorrow) live in S3-compatible object storage
+— MinIO in compose for self-host, or bring your own (AWS/R2/GCS-XML) via
+`S3_*` creds. Bytes never proxy through Next.js: the server mints
+short-lived presigned URLs and clients PUT/GET direct to storage
+(`lib/storage.ts`; bucket self-provisions on first use).
 
 ## Why Postgres rows for metrics (not a TSDB)
 

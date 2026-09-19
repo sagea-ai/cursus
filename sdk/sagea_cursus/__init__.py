@@ -1,4 +1,4 @@
-"""Public SDK surface: init, log, finish, log_artifact, config.
+"""Public SDK surface: init, log, finish, log_artifact, log_image, config.
 
 ``__all__`` enforces the minimal contract — everything else is
 underscore-prefixed and private.
@@ -11,10 +11,14 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
+import requests
+
 from ._client import CursusClient
+from ._media import MAX_BYTES as _MAX_IMAGE_BYTES
+from ._media import encode_image
 from ._run import Run, _clear_current, _get_current, _set_current
 
-__all__ = ["config", "finish", "init", "log", "log_artifact"]
+__all__ = ["config", "finish", "init", "log", "log_artifact", "log_image"]
 
 config: dict[str, Any] = {}
 
@@ -130,7 +134,7 @@ def log_artifact(
         warnings.warn("cursus: log_artifact() found no readable files; skipping.")
         return None
     try:
-        # Same-package access to the run's client (the one funnel, §8.2).
+        # Same-package access to the run's client (the one funnel).
         return run._client.create_artifact_version(
             name=name,
             files=files,
@@ -140,4 +144,50 @@ def log_artifact(
         )
     except Exception as exc:  # noqa: BLE001 — never crash training
         warnings.warn(f"cursus: log_artifact() failed (dropped): {exc}")
+        return None
+
+
+def log_image(
+    key: str,
+    image: str | PathLike[str] | bytes | Any,
+    step: int | None = None,
+) -> dict[str, Any] | None:
+    """Log one image at a step. Bytes go direct to object storage via a
+    presigned URL (no boto — plain requests PUT); the server only signs.
+
+    ``image`` is a file path, raw PNG/JPEG/WEBP bytes, a PIL Image, or a
+    numpy array (last two need pillow installed). Never raises into user
+    code: bad inputs, oversize files (>5 MB), and network failures warn
+    and drop. Returns the completed media payload, or None when skipped.
+
+    Example:
+        cursus.log_image("val/samples", "pred_epoch3.png", step=3)
+    """
+    run = _get_current()
+    if run is None:
+        warnings.warn("cursus: log_image() called before init(); ignoring.")
+        return None
+    if step is None:
+        warnings.warn("cursus: log_image() without step; using 0.")
+        step = 0
+    try:
+        data, mime = encode_image(image)
+    except (OSError, ValueError, TypeError) as exc:
+        warnings.warn(f"cursus: log_image() skipping bad input: {exc}")
+        return None
+    if len(data) > _MAX_IMAGE_BYTES:
+        warnings.warn(f"cursus: log_image() exceeds the 5 MB cap ({len(data)} bytes); skipping.")
+        return None
+    try:
+        ticket = run._client.request_upload_url(run.id, key, int(step), mime, len(data))
+        resp = requests.put(
+            ticket["url"],
+            data=data,
+            headers={"Content-Type": mime},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return run._client.complete_upload(run.id, ticket["mediaId"])
+    except Exception as exc:  # noqa: BLE001 — never crash training
+        warnings.warn(f"cursus: log_image() failed (dropped): {exc}")
         return None

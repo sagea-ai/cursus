@@ -330,6 +330,42 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByText("Config diff")).toBeVisible();
   await expect(page.getByText("0.001").first()).toBeVisible();
 
+  // 6b. Media: presigned ticket → direct PUT → complete → viewer shows it.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const ticket = await request.post(
+    `/api/v1/runs/${runIds[0]}/media/upload-url`,
+    {
+      headers: { Cookie: adminCookie },
+      data: {
+        key: "val/samples",
+        step: 1,
+        mime: "image/png",
+        sizeBytes: png.length,
+      },
+    },
+  );
+  expect(ticket.ok()).toBeTruthy();
+  const { url, mediaId } = (await ticket.json()) as {
+    url: string;
+    mediaId: string;
+  };
+  const put = await request.put(url, {
+    data: png,
+    headers: { "Content-Type": "image/png" },
+  });
+  expect(put.ok()).toBeTruthy();
+  const done = await request.post(
+    `/api/v1/runs/${runIds[0]}/media/${mediaId}/complete`,
+    { headers: { Cookie: adminCookie } },
+  );
+  expect(done.ok()).toBeTruthy();
+  await page.goto(`/${orgSlug}/e2e-proj/runs/${runIds[0]}`);
+  await expect(page.getByRole("tab", { name: "Charts" })).toBeVisible();
+  await expect(page.getByAltText("val/samples at step 1")).toBeVisible();
+
   // 7. Invite a member; accept via link; land in dashboard.
   await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();

@@ -141,6 +141,7 @@ model Run {
 
   metrics     Metric[]
   artifactsProduced ArtifactVersion[]
+  media       MediaItem[]
 
 
   @@index([projectId])
@@ -228,6 +229,34 @@ model AuditEvent {
 // tables). File bytes live in Postgres (bytea) to keep self-hosting to one
 // database; practical cap ~100MB/file enforced at upload (see lib/artifacts).
 // An S3-compatible backend is the documented v2 escape hatch.
+
+// --- Media (images) ----------------------------------------------------------
+// Logged images, key/step addressed like metrics. Bytes live in object
+// storage (see lib/storage.ts) — Postgres holds metadata only. Two-phase
+// upload: PENDING at URL issue, COMPLETED after the client PUTs + confirms;
+// the viewer only lists COMPLETED. Re-logging (run,key,step) overwrites the
+// same deterministic object key, so re-uploads can never leak storage.
+
+enum MediaStatus {
+  PENDING
+  COMPLETED
+}
+
+model MediaItem {
+  id         String      @id @default(cuid())
+  runId      String
+  run        Run         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  key        String
+  step       Int
+  mime       String
+  sizeBytes  Int
+  storageKey String
+  status     MediaStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+
+  @@unique([runId, key, step])
+  @@index([runId, status, step])
+}
 
 model Artifact {
   id          String   @id @default(cuid())

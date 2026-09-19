@@ -47,6 +47,15 @@ export const finishRunSchema = z.object({
 
 export type FinishRunInput = z.infer<typeof finishRunSchema>;
 
+export const requestMediaSchema = z.object({
+  key: z.string().min(1).max(128),
+  step: z.number().int().min(0),
+  mime: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  sizeBytes: z.number().int().positive(),
+});
+
+export type RequestMediaInput = z.infer<typeof requestMediaSchema>;
+
 export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),

@@ -11,7 +11,8 @@ requires-python = ">=3.9"
 license = { text = "SAGEA Noncommercial License 1.0 (see LICENSE in repo root)" }
 classifiers = ["License :: Other/Proprietary License"]
 authors = [{ name = "SAGEA Labs" }]
-# Hard dependency: requests only. No optional-dependency creep in v1 (PRD §8.1).
+# Hard dependency: requests only. No optional-dependency creep — numpy/PIL
+# are lazy optional imports, never install requirements.
 dependencies = ["requests>=2.31"]
 
 [project.optional-dependencies]

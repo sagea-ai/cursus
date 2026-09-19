@@ -36,6 +36,7 @@ def test_public_surface_is_barebones() -> None:
         "init",
         "log",
         "log_artifact",
+        "log_image",
     ]
 
 
@@ -148,3 +149,85 @@ def test_resolve_base_url_precedence(monkeypatch) -> None:  # type: ignore[no-un
     assert resolve_base_url() == "http://localhost:3000"
     monkeypatch.setenv("CURSUS_BASE_URL", "https://example.com/")
     assert resolve_base_url() == "https://example.com"
+
+
+PNG_1PX = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+    b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def test_encode_image_sniffs_bytes_and_paths(tmp_path) -> None:
+    from sagea_cursus._media import encode_image
+
+    data, mime = encode_image(PNG_1PX)
+    assert mime == "image/png" and data == PNG_1PX
+    p = tmp_path / "a.png"
+    p.write_bytes(PNG_1PX)
+    assert encode_image(str(p)) == (PNG_1PX, "image/png")
+    try:
+        encode_image(b"not-an-image")
+    except ValueError as exc:
+        assert "not PNG/JPEG/WEBP" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+    try:
+        encode_image(12345)
+    except TypeError as exc:
+        assert "takes a path, bytes" in str(exc)
+    else:
+        raise AssertionError("expected TypeError")
+
+
+def test_log_image_success_warns_never_and_completes(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    puts = []
+
+    class FakeResp:
+        def raise_for_status(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        cursus.requests, "put", lambda url, **kw: puts.append((url, kw)) or FakeResp()
+    )
+
+    class FakeMediaClient:
+        def request_upload_url(self, run_id, key, step, mime, size):
+            assert (run_id, key, step, mime, size) == ("r", "k", 3, "image/png", len(PNG_1PX))
+            return {"mediaId": "m1", "url": "http://put/here"}
+
+        def complete_upload(self, run_id, media_id):
+            assert (run_id, media_id) == ("r", "m1")
+            return {"id": "m1", "key": "k", "step": 3}
+
+    run_mod._set_current(SimpleNamespace(id="r", _client=FakeMediaClient()))
+    try:
+        out = cursus.log_image("k", PNG_1PX, step=3)
+        assert out == {"id": "m1", "key": "k", "step": 3}
+        assert puts and puts[0][0] == "http://put/here"
+    finally:
+        run_mod._set_current(None)
+
+
+def test_log_image_drops_oversize_and_failures(monkeypatch, tmp_path) -> None:
+    from types import SimpleNamespace
+
+    # Bound at import into the cursus namespace — patch the use site.
+    monkeypatch.setattr(cursus, "_MAX_IMAGE_BYTES", 4)
+
+    class ExplodingClient:
+        def request_upload_url(self, *a):
+            raise ConnectionError("down")
+
+    run_mod._set_current(SimpleNamespace(id="r", _client=ExplodingClient()))
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert cursus.log_image("k", PNG_1PX, step=0) is None
+            assert cursus.log_image("k", str(tmp_path / "missing.png"), step=0) is None
+        assert any("5 MB" in str(w.message) or "exceeds" in str(w.message) for w in caught)
+        assert any("bad input" in str(w.message) for w in caught)
+    finally:
+        run_mod._set_current(None)

@@ -463,6 +463,15 @@ export async function deleteRun(
 ): Promise<{ id: string }> {
   requireRole(session, "SUPER_ADMIN");
   await assertRunInOrg(session.orgId, runId);
+  // Objects first: row delete cascades MediaItem metadata, which would
+  // orphan the bytes. Storage failures never block the delete itself.
+  try {
+    const { purgeRunMedia } = await import("@/lib/media");
+    await purgeRunMedia(runId);
+  } catch {
+    // Best-effort — orphaned objects share the deterministic key scheme
+    // and are overwritten (never duplicated) by future logs.
+  }
   await db.run.delete({ where: { id: runId } });
   return { id: runId };
 }

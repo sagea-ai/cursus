@@ -94,6 +94,15 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
+      minio:
+        image: quay.io/minio/minio:latest
+        env:
+          MINIO_ROOT_USER: cursus
+          MINIO_ROOT_PASSWORD: cursus-minio-secret
+        ports:
+          - 9000:9000
+        # No healthcheck: the minio image is shell-less. The server retries
+        # bucket setup with backoff, and tests hit it minutes after boot.
     env:
       DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
       E2E_DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
@@ -101,6 +110,12 @@ jobs:
       SESSION_SECRET: ci-test-secret-not-a-real-secret
       BOOTSTRAP_ADMIN_EMAIL: admin@e2e.test
       BOOTSTRAP_ORG_NAME: E2E Org
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: cursus-media
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: cursus
+      S3_SECRET_KEY: cursus-minio-secret
+      S3_FORCE_PATH_STYLE: "true"
     steps:
       - uses: actions/checkout@v4
 

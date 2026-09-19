@@ -134,6 +134,30 @@ class CursusClient:
         )
         resp.raise_for_status()
 
+    def request_upload_url(
+        self,
+        run_id: str,
+        key: str,
+        step: int,
+        mime: str,
+        size: int,
+    ) -> dict[str, Any]:
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/runs/{run_id}/media/upload-url",
+            json={"key": key, "step": step, "mime": mime, "sizeBytes": size},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def complete_upload(self, run_id: str, media_id: str) -> dict[str, Any]:
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/runs/{run_id}/media/{media_id}/complete",
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def create_artifact_version(
         self,
         name: str,

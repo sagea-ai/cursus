@@ -188,7 +188,7 @@ export default async function ActivityPage({
         </p>
       </div>
 
-      {overview.totalRuns === 0 ? (
+      {overview.totalRuns === 0 && (
         <Card>
           <CardHeader>
             <CardTitle>No runs started by you yet</CardTitle>
@@ -239,179 +239,170 @@ cursus.finish()`}
             </span>
           </CardContent>
         </Card>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-            {cards.map((c) => (
-              <Card key={c.label}>
-                <CardContent className="p-4">
-                  <p className="text-2xl font-semibold">{c.value}</p>
-                  <p className="text-xs text-muted-foreground">{c.label}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground/70">
-                    {c.sub}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      )}
 
-          {runningCount > 0 && (
-            <Card className="border-accent-pale/40">
-              <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
-                <span className="relative flex size-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-pale opacity-60" />
-                  <span className="relative inline-flex size-2.5 rounded-full bg-accent-pale" />
-                </span>
-                <span className="font-medium">
-                  {plural(runningCount, "run", "runs")} live now
-                </span>
-                {runningNow.slice(0, 3).map((r) => (
-                  <Link
-                    key={r.id}
-                    href={`/${org.slug}/${r.projectSlug}/runs/${r.id}`}
-                    className="text-accent-pale hover:underline"
-                  >
-                    {r.name}
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contribution grid</CardTitle>
-              <CardDescription>
-                Runs you started per day, last 365 days
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ActivityHeatmap days={overview.activity} />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        {cards.map((c) => (
+          <Card key={c.label}>
+            <CardContent className="p-4">
+              <p className="text-2xl font-semibold">{c.value}</p>
+              <p className="text-xs text-muted-foreground">{c.label}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground/70">
+                {c.sub}
+              </p>
             </CardContent>
           </Card>
+        ))}
+      </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">Last 30 days</CardTitle>
-                <CardDescription>Runs started per day</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ActivityChart data={overview.activity.slice(-30)} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Status mix</CardTitle>
-                <CardDescription>Your runs by status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StatusMixChart data={overview.statusMix} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Weekday rhythm</CardTitle>
-                <CardDescription>Which days you train</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <WeekdayRhythm days={overview.activity} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Monthly trend</CardTitle>
-                <CardDescription>Runs per month, last 12</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ActivityChart data={monthly} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Records</CardTitle>
-                <CardDescription>Personal bests</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 text-sm">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">Best day</span>
-                  <span className="font-medium">
-                    {formatDay(bestDay.date)} ·{" "}
-                    {plural(bestDay.count, "run", "runs")}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">Longest run</span>
-                  <span className="font-medium">
-                    {formatCompute(overview.longestRunMs)}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">
-                    Avg per active day
-                  </span>
-                  <span className="font-medium">{avgPerActiveDay}</span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">Share of org</span>
-                  <span className="font-medium">
-                    {sharePct}% ({overview.totalRuns} of {overview.orgRuns})
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Top projects</CardTitle>
-                <CardDescription>Where your runs went</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TopProjectsChart
-                  orgSlug={org.slug}
-                  data={overview.topProjects}
-                />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Recent runs</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 p-0">
-                {overview.recentRuns.length === 0 ? (
-                  <p className="p-5 text-sm text-muted-foreground">
-                    Nothing yet.
-                  </p>
-                ) : (
-                  overview.recentRuns.map((r) => (
-                    <Link
-                      key={r.id}
-                      href={`/${org.slug}/${r.projectSlug}/runs/${r.id}`}
-                      className="flex items-center gap-3 border-b border-border px-5 py-2.5 text-sm last:border-0 hover:bg-muted/40"
-                    >
-                      <StatusBadge status={r.status} />
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {r.name}
-                      </span>
-                      <span className="hidden font-mono text-xs text-muted-foreground sm:block">
-                        {r.projectSlug}
-                      </span>
-                      <span className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDate(r.startedAt)}
-                      </span>
-                    </Link>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </>
+      {runningCount > 0 && (
+        <Card className="border-accent-pale/40">
+          <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
+            <span className="relative flex size-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-pale opacity-60" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-accent-pale" />
+            </span>
+            <span className="font-medium">
+              {plural(runningCount, "run", "runs")} live now
+            </span>
+            {runningNow.slice(0, 3).map((r) => (
+              <Link
+                key={r.id}
+                href={`/${org.slug}/${r.projectSlug}/runs/${r.id}`}
+                className="text-accent-pale hover:underline"
+              >
+                {r.name}
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Contribution grid</CardTitle>
+          <CardDescription>
+            Runs you started per day, last 365 days
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ActivityHeatmap days={overview.activity} />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Last 30 days</CardTitle>
+            <CardDescription>Runs started per day</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ActivityChart data={overview.activity.slice(-30)} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Status mix</CardTitle>
+            <CardDescription>Your runs by status</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StatusMixChart data={overview.statusMix} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Weekday rhythm</CardTitle>
+            <CardDescription>Which days you train</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WeekdayRhythm days={overview.activity} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Monthly trend</CardTitle>
+            <CardDescription>Runs per month, last 12</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ActivityChart data={monthly} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Records</CardTitle>
+            <CardDescription>Personal bests</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 text-sm">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">Best day</span>
+              <span className="font-medium">
+                {formatDay(bestDay.date)} ·{" "}
+                {plural(bestDay.count, "run", "runs")}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">Longest run</span>
+              <span className="font-medium">
+                {formatCompute(overview.longestRunMs)}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">Avg per active day</span>
+              <span className="font-medium">{avgPerActiveDay}</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">Share of org</span>
+              <span className="font-medium">
+                {sharePct}% ({overview.totalRuns} of {overview.orgRuns})
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Top projects</CardTitle>
+            <CardDescription>Where your runs went</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TopProjectsChart orgSlug={org.slug} data={overview.topProjects} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent runs</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 p-0">
+            {overview.recentRuns.length === 0 ? (
+              <p className="p-5 text-sm text-muted-foreground">Nothing yet.</p>
+            ) : (
+              overview.recentRuns.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/${org.slug}/${r.projectSlug}/runs/${r.id}`}
+                  className="flex items-center gap-3 border-b border-border px-5 py-2.5 text-sm last:border-0 hover:bg-muted/40"
+                >
+                  <StatusBadge status={r.status} />
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {r.name}
+                  </span>
+                  <span className="hidden font-mono text-xs text-muted-foreground sm:block">
+                    {r.projectSlug}
+                  </span>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatDate(r.startedAt)}
+                  </span>
+                </Link>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GET as exportGET } from "@/app/api/v1/runs/[runId]/export/route";
+import { GET as projectExportGET } from "@/app/api/v1/projects/[project]/export/route";
 import { POST as logPOST } from "@/app/api/v1/runs/[runId]/log/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
 import { EXPORT_BATCH_SIZE } from "@/lib/export";
@@ -132,6 +133,111 @@ describe.skipIf(!apiTestsEnabled)("export routes", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { points: unknown[] };
       expect(body.points).toHaveLength(EXPORT_BATCH_SIZE + 100);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("project export streams every visible run; key filter + subset hold", async () => {
+    const org = await createTestOrg("exp");
+    try {
+      const r1 = await makeRun(org, "p1-a");
+      await logPoints(org.member, r1, "train/loss", 3);
+      const r2 = await makeRun(org, "p1-b");
+      await logPoints(org.member, r2, "train/loss", 2);
+      await logPoints(org.member, r2, "eval/acc", 1);
+
+      const csv = await projectExportGET(
+        await authedRequest(
+          "/api/v1/projects/export-proj/export?format=csv",
+          org.member,
+        ),
+        { params: Promise.resolve({ project: "export-proj" }) },
+      );
+      expect(csv.status).toBe(200);
+      expect(csv.headers.get("content-disposition")).toMatch(
+        /attachment; filename="cursus-export-proj-metrics\.csv"/,
+      );
+      const lines = (await csv.text()).trim().split("\n");
+      expect(lines[0]).toBe("run_id,run_name,key,step,value,wall_time");
+      expect(lines).toHaveLength(1 + 6);
+
+      const json = await projectExportGET(
+        await authedRequest(
+          "/api/v1/projects/export-proj/export?format=json&key=train%2Floss",
+          org.member,
+        ),
+        { params: Promise.resolve({ project: "export-proj" }) },
+      );
+      expect(json.status).toBe(200);
+      const body = (await json.json()) as {
+        project: string;
+        runs: { run_id: string; points: { key: string }[] }[];
+      };
+      expect(body.project).toBe("export-proj");
+      expect(body.runs).toHaveLength(2);
+      expect(body.runs.flatMap((r) => r.points)).toHaveLength(5);
+      expect(
+        body.runs.every((r) => r.points.every((p) => p.key === "train/loss")),
+      ).toBe(true);
+
+      const anon = await projectExportGET(
+        apiRequest("/api/v1/projects/export-proj/export"),
+        { params: Promise.resolve({ project: "export-proj" }) },
+      );
+      expect(anon.status).toBe(401);
+
+      const missing = await projectExportGET(
+        await authedRequest("/api/v1/projects/nope/export", org.admin),
+        { params: Promise.resolve({ project: "nope" }) },
+      );
+      expect(missing.status).toBe(404);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("project export hides grouped runs from outsiders", async () => {
+    const org = await createTestOrg("exp");
+    try {
+      const { POST: groupsPOST } = await import("@/app/api/v1/groups/route");
+      await groupsPOST(
+        await authedRequest("/api/v1/groups", org.admin, {
+          method: "POST",
+          body: { name: "G" },
+        }),
+      );
+      // Grouped project (admin bypasses membership); member is an outsider.
+      const rin = await runsPOST(
+        await authedRequest("/api/v1/runs", org.admin, {
+          method: "POST",
+          body: { project: "gated", name: "r-in", group: "g" },
+        }),
+      );
+      expect(rin.status).toBe(201);
+      const inId = ((await rin.json()) as { run_id: string }).run_id;
+      await logPoints(org.admin, inId, "k", 2);
+
+      const res = await projectExportGET(
+        await authedRequest(
+          "/api/v1/projects/gated/export?format=json",
+          org.admin,
+        ),
+        { params: Promise.resolve({ project: "gated" }) },
+      );
+      expect(res.status).toBe(200);
+      expect(
+        ((await res.json()) as { runs: { points: unknown[] }[] }).runs,
+      ).toHaveLength(1);
+
+      const dark = await projectExportGET(
+        await authedRequest(
+          "/api/v1/projects/gated/export?format=json",
+          org.member,
+        ),
+        { params: Promise.resolve({ project: "gated" }) },
+      );
+      expect(dark.status).toBe(404);
     } finally {
       await org.cleanup();
     }

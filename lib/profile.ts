@@ -197,7 +197,11 @@ export interface ActivityTopProject {
 export interface ActivityOverview {
   totalRuns: number;
   weekRuns: number;
+  /** Org-wide visible runs (no author filter) — for "share of org" context. */
+  orgRuns: number;
   totalComputeMs: number;
+  longestRunMs: number;
+  pointsLogged: number;
   crashed: number;
   streaks: Streaks;
   statusMix: { status: string; count: number }[];
@@ -216,7 +220,8 @@ function spanMs(startedAt: Date, finishedAt: Date | null): number {
 /** Everything the "Your activity" page needs. Same scoping as the profile
  * reads (own runs, still visible to the caller), same bounded-query budget
  * as the dashboard: one year aggregate (reused), one capped recents list
- * (reused), two groupBys, one narrow durations scan, one name lookup. */
+ * (reused), two groupBys, one narrow durations scan, one name lookup, and
+ * two single-row counts (org context, points volume). */
 export async function getActivityOverview(
   session: Session | null,
 ): Promise<ActivityOverview> {
@@ -225,27 +230,44 @@ export async function getActivityOverview(
     createdById: session.userId,
     ...runVisibilityFilter(session),
   };
-  const [activity, recentRuns, statusRows, topProjectRows, spans] =
-    await Promise.all([
-      getActivity(session, 365),
-      listProfileRuns(session, { limit: 8 }),
-      db.run.groupBy({
-        by: ["status"],
-        where: scope,
-        _count: { _all: true },
-      }),
-      db.run.groupBy({
-        by: ["projectId"],
-        where: scope,
-        _count: { _all: true },
-        orderBy: { _count: { projectId: "desc" } },
-        take: 6,
-      }),
-      db.run.findMany({
-        where: scope,
-        select: { startedAt: true, finishedAt: true },
-      }),
-    ]);
+  // Org context + points volume: two bounded single-row counts. Metric
+  // count nests the run filter (author + visibility) under the relation.
+  const orgScope = {
+    project: { orgId: session.orgId },
+    ...runVisibilityFilter(session),
+  };
+  const [
+    activity,
+    recentRuns,
+    statusRows,
+    topProjectRows,
+    spans,
+    orgRuns,
+    pointsLogged,
+  ] = await Promise.all([
+    getActivity(session, 365),
+    listProfileRuns(session, { limit: 8 }),
+    db.run.groupBy({
+      by: ["status"],
+      where: scope,
+      _count: { _all: true },
+    }),
+    db.run.groupBy({
+      by: ["projectId"],
+      where: scope,
+      _count: { _all: true },
+      orderBy: { _count: { projectId: "desc" } },
+      take: 6,
+    }),
+    db.run.findMany({
+      where: scope,
+      select: { startedAt: true, finishedAt: true },
+    }),
+    db.run.count({ where: orgScope }),
+    db.metric.count({
+      where: { run: { ...scope, project: { orgId: session.orgId } } },
+    }),
+  ]);
 
   const projectNames = new Map(
     (
@@ -260,13 +282,16 @@ export async function getActivityOverview(
   );
 
   const totalRuns = statusRows.reduce((sum, row) => sum + row._count._all, 0);
+  const durations = spans.map((span) =>
+    spanMs(span.startedAt, span.finishedAt),
+  );
   return {
     totalRuns,
     weekRuns: activity.days.slice(-7).reduce((sum, d) => sum + d.count, 0),
-    totalComputeMs: spans.reduce(
-      (sum, span) => sum + spanMs(span.startedAt, span.finishedAt),
-      0,
-    ),
+    orgRuns,
+    totalComputeMs: durations.reduce((sum, ms) => sum + ms, 0),
+    longestRunMs: durations.length > 0 ? Math.max(...durations) : 0,
+    pointsLogged,
     crashed:
       statusRows.find((row) => row.status === "CRASHED")?._count._all ?? 0,
     streaks: computeStreaks(activity.days),

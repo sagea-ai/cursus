@@ -418,6 +418,9 @@ test("critical journey: bootstrap to restricted member", async ({
   await expect(page.getByText("Current streak")).toBeVisible();
   await expect(page.getByText("Contribution grid")).toBeVisible();
   await expect(page.getByText("Top projects")).toBeVisible();
+  await expect(page.getByText("Weekday rhythm")).toBeVisible();
+  await expect(page.getByText("Monthly trend")).toBeVisible();
+  await expect(page.getByText("Records")).toBeVisible();
 
   // 10. Admin renames the member from the Team row menu (members have no
   // self-service path — the name locked at invite accept).

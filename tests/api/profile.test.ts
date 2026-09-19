@@ -7,6 +7,7 @@ import {
 import { GET as activityGET } from "@/app/api/v1/profile/activity/route";
 import { GET as runsGET } from "@/app/api/v1/profile/runs/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
+import { POST as logPOST } from "@/app/api/v1/runs/[runId]/log/route";
 import { POST as finishPOST } from "@/app/api/v1/runs/[runId]/finish/route";
 import { getActivityOverview } from "@/lib/profile";
 import { POST as groupsPOST } from "@/app/api/v1/groups/route";
@@ -293,6 +294,21 @@ describe.skipIf(!apiTestsEnabled)("profile routes", () => {
         await mk(org.member, "p2", "old", ago(10));
         // Someone else's run must not leak in.
         await mk(org.admin, "p1", "not-mine", ago(0));
+        // Three logged points on the old run.
+        const oldId = await mk(org.member, "p2", "old-points", ago(10));
+        await logPOST(
+          await authedRequest(`/api/v1/runs/${oldId}/log`, org.member, {
+            method: "POST",
+            body: {
+              points: [
+                { key: "k", step: 0, value: 1 },
+                { key: "k", step: 1, value: 2 },
+                { key: "j", step: 0, value: 3 },
+              ],
+            },
+          }),
+          { params: Promise.resolve({ runId: oldId }) },
+        );
         // Crash today's run.
         await finishPOST(
           await authedRequest(`/api/v1/runs/${today}/finish`, org.member, {
@@ -303,15 +319,18 @@ describe.skipIf(!apiTestsEnabled)("profile routes", () => {
         );
 
         const o = await getActivityOverview(org.member);
-        expect(o.totalRuns).toBe(4);
+        expect(o.totalRuns).toBe(5);
         expect(o.weekRuns).toBe(3);
+        expect(o.orgRuns).toBe(6);
+        expect(o.pointsLogged).toBe(3);
+        expect(o.longestRunMs).toBeGreaterThan(9 * 86_400_000);
         expect(o.streaks).toEqual({
           current: 3,
           longest: 3,
           activeDays: 4,
         });
         expect(o.crashed).toBe(1);
-        expect(o.statusMix.reduce((a, s) => a + s.count, 0)).toBe(4);
+        expect(o.statusMix.reduce((a, s) => a + s.count, 0)).toBe(5);
         expect(o.topProjects.map((p) => p.slug)).toEqual(["p1", "p2"]);
         expect(o.topProjects[0]!.runs).toBe(3);
         expect(o.recentRuns.map((r) => r.name)).not.toContain("not-mine");

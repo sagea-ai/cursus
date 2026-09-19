@@ -99,7 +99,7 @@ describe.skipIf(!apiTestsEnabled)("onboarding settings", () => {
             orgName: "another",
             name: "Owner",
             email: testEmail("owner"),
-            password: "password-1",
+            password: "Test-password-1",
           },
         }),
       );

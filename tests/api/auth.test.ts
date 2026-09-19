@@ -33,7 +33,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
             orgName: "another",
             name: "Intruder",
             email: testEmail("intruder"),
-            password: "password-1",
+            password: "Test-password-1",
           },
         }),
       );
@@ -56,7 +56,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
             orgName: "another",
             name: "Owner",
             email: process.env["BOOTSTRAP_ADMIN_EMAIL"]!,
-            password: "password-1",
+            password: "Test-password-1",
           },
         }),
       );
@@ -142,7 +142,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const first = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
-          body: { token, password: "new-password-1" },
+          body: { token, password: "New-password-1" },
         }),
       );
       expect(first.status).toBe(200);
@@ -152,7 +152,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const login = await loginPOST(
         apiRequest("/api/v1/auth/login", {
           method: "POST",
-          body: { email, password: "new-password-1" },
+          body: { email, password: "New-password-1" },
         }),
       );
       expect(login.status).toBe(200);
@@ -161,7 +161,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const reuse = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
-          body: { token, password: "another-password-1" },
+          body: { token, password: "Another-password-1" },
         }),
       );
       expect(reuse.status).toBe(410);
@@ -170,7 +170,7 @@ describe.skipIf(!apiTestsEnabled)("auth routes", () => {
       const bad = await acceptPOST(
         apiRequest("/api/v1/auth/invites/accept", {
           method: "POST",
-          body: { token: "garbage", password: "another-password-1" },
+          body: { token: "garbage", password: "Another-password-1" },
         }),
       );
       expect(bad.status).toBe(400);

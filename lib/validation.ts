@@ -174,11 +174,23 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// Passwords are set in exactly two places (onboarding, invite accept) and
+// both share this schema — client checklists mirror these rules, but the
+// server is the enforcer. 12+ chars with all four character classes.
+export const passwordSchema = z
+  .string()
+  .min(12, "at least 12 characters")
+  .max(256)
+  .regex(/[A-Z]/, "an uppercase letter (A-Z)")
+  .regex(/[a-z]/, "a lowercase letter (a-z)")
+  .regex(/[0-9]/, "a number (0-9)")
+  .regex(/[^A-Za-z0-9]/, "a special character");
+
 export const bootstrapSchema = z.object({
   orgName: z.string().min(1).max(128),
   name: z.string().min(1).max(128),
   email: z.string().email().max(320),
-  password: z.string().min(8).max(256),
+  password: passwordSchema,
 });
 
 export type BootstrapInput = z.infer<typeof bootstrapSchema>;
@@ -189,7 +201,7 @@ export const onboardingSettingsSchema = z.object({
 
 export const acceptInviteSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(8).max(256),
+  password: passwordSchema,
 });
 
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FiBox } from "react-icons/fi";
 
 import { ProjectTabs } from "@/components/project-tabs";
+import { CodeBlock } from "@/components/code-block";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -57,12 +58,13 @@ export default async function ArtifactsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-relaxed">
-              {`import sagea_cursus as cursus
+            <CodeBlock
+              language="python"
+              code={`import sagea_cursus as cursus
 
 cursus.log_artifact("my-model", "runs/train/weights/best.pt",
                     type="model", description="map50: 0.61")`}
-            </pre>
+            />
           </CardContent>
         </Card>
       ) : (

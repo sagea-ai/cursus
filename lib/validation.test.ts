@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createRunSchema, finishRunSchema, logBatchSchema } from "./validation";
+import {
+  acceptInviteSchema,
+  bootstrapSchema,
+  createRunSchema,
+  finishRunSchema,
+  logBatchSchema,
+  passwordSchema,
+} from "./validation";
 
 describe("API contract schemas (§6)", () => {
   it("accepts a minimal create-run body", () => {
@@ -45,5 +52,39 @@ describe("API contract schemas (§6)", () => {
       status: "finished",
     });
     expect(() => finishRunSchema.parse({ status: "done" })).toThrow();
+  });
+});
+
+describe("passwordSchema", () => {
+  it("accepts 12+ chars with all four classes", () => {
+    expect(passwordSchema.parse("Test-password-1")).toBe("Test-password-1");
+  });
+
+  it.each([
+    ["short-1A!", "too short"],
+    ["longpassword-1", "missing uppercase"],
+    ["LONGPASSWORD-1", "missing lowercase"],
+    ["Long-password", "missing digit"],
+    ["Longpassword1", "missing special"],
+  ])("rejects %s (%s)", (pw) => {
+    expect(() => passwordSchema.parse(pw)).toThrow();
+  });
+
+  it("applies to bootstrap and invite-accept bodies", () => {
+    const base = {
+      orgName: "o",
+      name: "n",
+      email: "a@b.co",
+      token: "t",
+    };
+    expect(() =>
+      bootstrapSchema.parse({ ...base, password: "weak" }),
+    ).toThrow();
+    expect(() =>
+      acceptInviteSchema.parse({ token: "t", password: "weak" }),
+    ).toThrow();
+    expect(
+      bootstrapSchema.parse({ ...base, password: "Test-password-1" }).password,
+    ).toBe("Test-password-1");
   });
 });

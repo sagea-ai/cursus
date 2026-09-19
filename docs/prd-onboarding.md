@@ -59,7 +59,9 @@ in depth, and an audit-visible guarantee).
 4. Step 2: name, role (SUPER_ADMIN preselected and locked, with a note that
    the first account must own the org), org name (prefilled suggestion,
    editable), login email (carried from step 1, read-only), password +
-   confirm (min 8, must match, checked client-side AND server-side length).
+   confirm (12+ chars with uppercase, lowercase, digit, and special
+   character — shared passwordSchema, live checklist client-side,
+   enforced server-side).
 5. Disclaimer block + required checkbox: "Onboarding can be completed
    exactly once. After this account is created, this page is permanently
    disabled and new accounts can only be created by invitation from a

@@ -31,6 +31,7 @@
     "bcryptjs": "3.0.3",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "highlight.js": "^11.11.1",
     "jose": "6.2.12",
     "next": "16.3.5",
     "pg": "8.23.0",

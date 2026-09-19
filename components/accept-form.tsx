@@ -3,9 +3,8 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { authInputClass } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { PasswordFields, passwordMeetsAll } from "@/components/password-fields";
 
 export function AcceptForm({ token }: { token: string }) {
   const router = useRouter();
@@ -18,6 +17,10 @@ export function AcceptForm({ token }: { token: string }) {
     e.preventDefault();
     if (password !== confirm) {
       setError("Passwords do not match");
+      return;
+    }
+    if (!passwordMeetsAll(password)) {
+      setError("Password does not meet all requirements above");
       return;
     }
     setBusy(true);
@@ -39,34 +42,15 @@ export function AcceptForm({ token }: { token: string }) {
 
   return (
     <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Choose a password</Label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          placeholder="At least 8 characters"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className={authInputClass}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="confirm">Confirm password</Label>
-        <input
-          id="confirm"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          placeholder="Repeat it exactly"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          className={authInputClass}
-        />
-      </div>
+      <PasswordFields
+        password={password}
+        confirm={confirm}
+        onPassword={setPassword}
+        onConfirm={setConfirm}
+        idPrefix="accept"
+        passwordLabel="Choose a password"
+        confirmLabel="Confirm password"
+      />
       {error && (
         <p role="alert" className="text-sm text-red-600">
           {error}

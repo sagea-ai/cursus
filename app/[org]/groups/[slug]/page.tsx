@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FiFolder } from "react-icons/fi";
 
 import { GroupMembers } from "@/components/group-members";
+import { CodeBlock } from "@/components/code-block";
 import {
   Card,
   CardContent,
@@ -83,9 +84,10 @@ export default async function GroupDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-relaxed">
-              {`run = cursus.init(project="demo", group="${group.slug}")`}
-            </pre>
+            <CodeBlock
+              language="python"
+              code={`run = cursus.init(project="demo", group="${group.slug}")`}
+            />
           </CardContent>
         </Card>
       </div>

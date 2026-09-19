@@ -10,12 +10,12 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 const ADMIN = {
   name: "E2E Admin",
   email: "admin@e2e.test",
-  password: "admin-password-1",
+  password: "Admin-password-1",
 };
-const MEMBER = { email: "member@e2e.test", password: "member-password-1" };
+const MEMBER = { email: "member@e2e.test", password: "Member-password-1" };
 const OUTSIDER = {
   email: "outsider@e2e.test",
-  password: "outsider-password-1",
+  password: "Outsider-password-1",
 };
 
 function sessionCookie(setCookie: string | null): string {
@@ -68,13 +68,19 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByLabel("Bootstrap email").fill(ADMIN.email);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Your name").fill(ADMIN.name);
+  // Realtime password checklist is visible before typing anything.
+  await expect(page.getByText("At least 12 characters")).toBeVisible();
   // Org name comes prefilled from BOOTSTRAP_ORG_NAME.
   await expect(page.getByLabel("Organization name")).toHaveValue("E2E Org");
   await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
   await page.getByLabel("Confirm password").fill("mismatch-password");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await expect(page.getByText("Passwords do not match")).toBeVisible();
+  // NOTE: getByRole("alert") doesn't resolve live-region roles in this
+  // Playwright version (verified empirically) — CSS attribute selector.
+  await expect(page.locator('form p[role="alert"]')).toContainText(
+    "Passwords do not match",
+  );
   await page.getByLabel("Confirm password").fill(ADMIN.password);
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page).toHaveURL(/\/[^/]+\/projects/);

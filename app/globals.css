@@ -58,6 +58,43 @@ body {
   color: var(--foreground);
 }
 
+/* highlight.js token colors — light GitHub-ish palette on muted blocks. */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+  color: #0050fd;
+  font-weight: 600;
+}
+.hljs-string,
+.hljs-regexp {
+  color: #0a7d33;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #78716c;
+  font-style: italic;
+}
+.hljs-number,
+.hljs-literal {
+  color: #b45309;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: #1c1917;
+  font-weight: 600;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable {
+  color: #0a54c2;
+}
+.hljs-operator,
+.hljs-punctuation {
+  color: #57534e;
+}
+
 @keyframes status-pulse {
   0%,
   100% {

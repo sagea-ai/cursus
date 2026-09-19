@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
+import { CodeBlock } from "@/components/code-block";
 import { ProjectGroupMove } from "@/components/project-group-move";
 import { ProjectRename } from "@/components/project-rename";
 import { ProjectTabs } from "@/components/project-tabs";
@@ -153,22 +154,28 @@ export default async function ProjectOverviewPage({
                 </div>
                 <div>
                   <p className="font-medium">Export metrics to CSV</p>
-                  <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                    {`curl -H "Authorization: Bearer $CURSUS_API_KEY" \\
-  "${"${CURSUS_BASE_URL}"}/api/v1/runs/<run_id>/export?format=csv" \\
+                  <div className="mt-1">
+                    <CodeBlock
+                      language="bash"
+                      code={`curl -H "Authorization: Bearer $CURSUS_API_KEY" \\
+  "\${CURSUS_BASE_URL}/api/v1/runs/<run_id>/export?format=csv" \\
   -o metrics.csv`}
-                  </pre>
+                    />
+                  </div>
                 </div>
                 <div>
                   <p className="font-medium">
                     Rename, retag, or annotate a run
                   </p>
-                  <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                    {`curl -X PATCH -H "Authorization: Bearer $CURSUS_API_KEY" \\
+                  <div className="mt-1">
+                    <CodeBlock
+                      language="bash"
+                      code={`curl -X PATCH -H "Authorization: Bearer $CURSUS_API_KEY" \\
   -H 'Content-Type: application/json' \\
   -d '{"notes": "promising direction"}' \\
-  "${"${CURSUS_BASE_URL}"}/api/v1/runs/<run_id>"`}
-                  </pre>
+  "\${CURSUS_BASE_URL}/api/v1/runs/<run_id>"`}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

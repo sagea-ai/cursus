@@ -96,15 +96,10 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
-      minio:
-        image: quay.io/minio/minio:latest
-        env:
-          MINIO_ROOT_USER: cursus
-          MINIO_ROOT_PASSWORD: cursus-minio-secret
-        ports:
-          - 9000:9000
-        # No healthcheck: the minio image is shell-less. The server retries
-        # bucket setup with backoff, and tests hit it minutes after boot.
+    # NOTE: no services.minio here on purpose. The minio image's default
+    # command is bare `minio` (no `server /data` args), so as a service
+    # container it exits immediately — and service containers take no
+    # command override. MinIO starts via `docker run` in the steps below.
     env:
       DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
       E2E_DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
@@ -136,6 +131,20 @@ jobs:
         run: |
           npx prisma generate
           npx prisma migrate deploy
+
+      - name: Start MinIO (object storage for the media step)
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=cursus \
+            -e MINIO_ROOT_PASSWORD=cursus-minio-secret \
+            quay.io/minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && exit 0
+            sleep 2
+          done
+          echo "MinIO never became ready" >&2
+          docker logs minio 2>&1 | tail -20
+          exit 1
 
       - name: Production build
         run: npm run build

@@ -47,20 +47,26 @@ Quick actions right-aligned: **New Project** (all roles), **Invite member**
 
 ### 4.2 Stat cards (one row, five cards)
 
-Visible-runs total · Running now · Visible projects · My groups (member) or
-Groups (admin, all) · Compute, summed durations formatted like project
-totals. Every number respects group visibility (same filters as the
-project stats — a member must not infer hidden runs from dashboard totals).
+Visible-runs total (+started this week) · Running now (up to 3 running
+names, else "idle") · Visible projects (top project by runs) · My
+groups (member) or Groups (admin, with member count) · Compute, summed
+durations formatted like project totals (across N runs). Every number
+respects group visibility (same filters as the project stats — a member
+must not infer hidden runs from dashboard totals).
 
-### 4.3 Org activity chart
+### 4.3 Org activity chart + status mix (one row)
 
-Runs started per day, last 30 days, bar chart (recharts, already a dep).
-One grouped query. Title: "Activity".
+Left (2/3) — **Activity**: runs started per day, last 30 days, bar chart
+(recharts, already a dep). Right (1/3) — **Status mix**: donut of all
+visible runs by status (RUNNING/FINISHED/CRASHED/KILLED) with a
+count legend; "No runs yet" empty state.
 
-### 4.4 Two-column section
+### 4.4 Three-column section
 
-Left — **Recent runs** (8 newest visible runs: status badge, name link,
-project, duration). Right, role-dependent:
+- **Top projects** — horizontal bars, 8 most-run visible projects,
+  linking to the project; "No projects with runs yet" empty state.
+- **Recent runs** (8 newest visible runs: status badge, name link,
+  project, duration). Right, role-dependent:
 
 - Member: **My groups** (name links + run counts; empty state points at
   asking an admin).
@@ -70,7 +76,9 @@ project, duration). Right, role-dependent:
 
 ### 4.5 Fresh-org getting started
 
-Shown only when the org has zero runs (either role): three steps —
+Shown first when the org has zero runs (either role), followed by the
+full dashboard in its empty state (zeroed cards, flat activity axes):
+three steps —
 
 1. SDK snippet (existing quickstart block), 2) create API key link,
 2. invite a teammate (admin) or "ask your admin for a group" (member).
@@ -83,6 +91,8 @@ Shown only when the org has zero runs (either role): three steps —
 | Invite member shortcut      | no                   | yes                 |
 | Stat cards (scoped counts)  | yes                  | yes (org-wide)      |
 | Activity chart              | own-visible scope    | org-wide            |
+| Status mix donut            | own-visible scope    | org-wide            |
+| Top projects bars           | own-visible top 8    | org top 8           |
 | Recent runs                 | own-visible 8        | org 8               |
 | My groups / Needs attention | groups               | attention           |
 | Getting started             | yes (member wording) | yes (admin wording) |
@@ -93,6 +103,7 @@ Single `Promise.all` in the page: projects-visible list (existing
 `listProjects`), org run counts by status (`groupBy`), running count (same,
 filtered), 30-day activity (`groupBy` date), 8 recent runs (indexed,
 capped), crashed-7d (indexed, capped at 8), pending invites count,
+top projects (`groupBy` projectId, top 8 + one name lookup),
 member groups (existing `listGroups`). No per-row follow-ups. Compute sum
 reuses the project-overview narrow-scan pattern (documented there).
 

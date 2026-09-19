@@ -292,6 +292,11 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.goto(`/${orgSlug}/dashboard`);
   await expect(page.getByText("Recent runs")).toBeVisible();
   await expect(page.getByRole("link", { name: "run-a" })).toBeVisible();
+  await expect(page.getByText("Status mix")).toBeVisible();
+  await expect(page.getByText("Top projects")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "E2E Renamed" }).first(),
+  ).toBeVisible();
 
   await page.goto(`/${orgSlug}/e2e-proj/runs?sort=name_asc`);
   await page.getByRole("link", { name: "run-a" }).click();

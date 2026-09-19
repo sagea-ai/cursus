@@ -25,12 +25,21 @@ export interface DashboardCrashedRun {
   finishedAt: Date | null;
 }
 
+export interface DashboardTopProject {
+  slug: string;
+  name: string;
+  runs: number;
+}
+
 export interface DashboardStats {
   totalRuns: number;
   runningNow: number;
   projectCount: number;
   groupCount: number;
+  memberCount: number;
   totalComputeMs: number;
+  statusMix: { status: string; count: number }[];
+  topProjects: DashboardTopProject[];
   activity: { date: string; count: number }[];
   recentRuns: DashboardRecentRun[];
   crashedWeek: DashboardCrashedRun[];
@@ -50,6 +59,8 @@ export async function getDashboardStats(
     statusRows,
     projectCount,
     groupCount,
+    memberCount,
+    topProjectRows,
     spans,
     activity,
     recentRuns,
@@ -71,6 +82,16 @@ export async function getDashboardStats(
             orgId: session.orgId,
             members: { some: { userId: session.userId } },
           },
+    }),
+    isAdmin
+      ? db.user.count({ where: { orgId: session.orgId } })
+      : Promise.resolve(0),
+    db.run.groupBy({
+      by: ["projectId"],
+      where: runScope,
+      _count: { _all: true },
+      orderBy: { _count: { projectId: "desc" } },
+      take: 8,
     }),
     // Narrow durations scan for the compute sum (two date columns, no
     // joins, no text). Bounded by org run volume at the stated scale;
@@ -128,12 +149,37 @@ export async function getDashboardStats(
       (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
   }
 
+  // Project names for the top-projects chart (lookup by id, still
+  // org-scoped; flatMap drops ids that vanished mid-flight).
+  const projectNames = new Map(
+    (
+      await db.project.findMany({
+        where: {
+          orgId: session.orgId,
+          id: { in: topProjectRows.map((row) => row.projectId) },
+        },
+        select: { id: true, slug: true, name: true },
+      })
+    ).map((project) => [project.id, project] as const),
+  );
+
   return {
     totalRuns,
     runningNow,
     projectCount,
     groupCount,
+    memberCount,
     totalComputeMs,
+    statusMix: statusRows.map((row) => ({
+      status: row.status,
+      count: row._count._all,
+    })),
+    topProjects: topProjectRows.flatMap((row) => {
+      const project = projectNames.get(row.projectId);
+      return project
+        ? [{ slug: project.slug, name: project.name, runs: row._count._all }]
+        : [];
+    }),
     activity,
     recentRuns: recentRuns.map((r) => ({
       id: r.id,

@@ -56,7 +56,8 @@ async function logRun(
 }
 
 describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
-  it("scopes every number by visibility", async () => {
+  // DB-heavy: ten scoped aggregates against a real Postgres.
+  it("scopes every number by visibility", { timeout: 60_000 }, async () => {
     const org = await setup();
     try {
       await groupsPOST(
@@ -117,6 +118,13 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
       expect(member.activity.reduce((a, d) => a + d.count, 0)).toBe(2);
       expect(member.recentRuns).toHaveLength(2);
       expect(member.pendingInvites).toBe(0);
+      // New widgets respect the same visibility scope.
+      expect(member.memberCount).toBe(0);
+      expect(member.statusMix.reduce((a, s) => a + s.count, 0)).toBe(2);
+      expect(member.topProjects.map((p) => p.slug).sort()).toEqual([
+        "grouped",
+        "open-proj",
+      ]);
 
       const stranger = await getDashboardStats(org.stranger);
       expect(stranger.totalRuns).toBe(1);
@@ -125,11 +133,14 @@ describe.skipIf(!apiTestsEnabled)("dashboard stats", () => {
       expect(stranger.groupCount).toBe(0);
       expect(stranger.recentRuns).toHaveLength(1);
       expect(stranger.activity.reduce((a, d) => a + d.count, 0)).toBe(1);
+      expect(stranger.topProjects.map((p) => p.slug)).toEqual(["open-proj"]);
 
       const admin = await getDashboardStats(org.admin);
       expect(admin.totalRuns).toBe(2);
       expect(admin.projectCount).toBe(2);
       expect(admin.pendingInvites).toBe(1);
+      expect(admin.memberCount).toBeGreaterThanOrEqual(3);
+      expect(admin.groupCount).toBe(1);
 
       // Crashed-run attention: crash the grouped run, stranger sees none.
       await finishPOST(

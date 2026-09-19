@@ -8,12 +8,12 @@ import {
   FiChevronsLeft,
   FiChevronsRight,
   FiFolder,
-  FiHome,
   FiKey,
   FiLayers,
   FiSettings,
   FiUsers,
 } from "react-icons/fi";
+import { BsBoxes } from "react-icons/bs";
 
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ const SECTIONS: {
 }[] = [
   {
     label: "Home",
-    items: [{ href: "dashboard", label: "Dashboard", icon: FiHome }],
+    items: [{ href: "dashboard", label: "Dashboard", icon: BsBoxes }],
   },
   {
     label: "Experiments",

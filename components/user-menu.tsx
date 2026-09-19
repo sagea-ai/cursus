@@ -89,7 +89,7 @@ export function UserMenu({
           </span>
           <span className="mt-2 block">
             <Badge variant="secondary">
-              {role === "SUPER_ADMIN" ? "super admin" : "member"}
+              {role === "SUPER_ADMIN" ? "Super Admin" : "Member"}
             </Badge>
           </span>
         </DropdownMenuLabel>

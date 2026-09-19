@@ -1,6 +1,6 @@
 // Prisma 7 config — datasource URL comes from env (see .env.example).
-// Migrations live in prisma/migrations. Schema source of truth is
-// prisma/schema.prisma (PRD §4, frozen at M0).
+// Migrations live in prisma/migrations. The schema file is the source of
+// truth for the data model and its design notes.
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 

@@ -42,6 +42,11 @@ jobs:
       - name: Install web deps
         run: npm ci
 
+      - name: Prisma generate
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build?schema=public
+
       - name: Dependency guard (shadcn/react-icons only)
         run: npm run lint:deps
 
@@ -56,9 +61,6 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
-
-      - name: Prisma generate
-        run: npx prisma generate
 
       - name: Prisma migrate (throwaway CI database)
         run: npx prisma migrate deploy

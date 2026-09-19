@@ -50,6 +50,41 @@ const SECTIONS: {
 
 // Embossed sidebar: flat items on warm paper, the active route pressed in
 // like a molded key (inset shadow + deeper fill). Collapsible to icons.
+//
+// Viewport-locked (sticky top-0 h-screen): long page content scrolls past
+// while the sidebar stays put; internal overflow covers short viewports.
+const SIDEBAR_KEY = "cursus-sidebar";
+
+let cachedCollapsed: boolean | null = null;
+const collapsedListeners = new Set<() => void>();
+
+function getCollapsedSnapshot(): boolean {
+  if (cachedCollapsed !== null) return cachedCollapsed;
+  try {
+    cachedCollapsed = window.localStorage.getItem(SIDEBAR_KEY) === "collapsed";
+  } catch {
+    cachedCollapsed = false;
+  }
+  return cachedCollapsed;
+}
+
+function subscribeCollapsed(listener: () => void): () => void {
+  collapsedListeners.add(listener);
+  return () => {
+    collapsedListeners.delete(listener);
+  };
+}
+
+function setCollapsedValue(next: boolean): void {
+  cachedCollapsed = next;
+  try {
+    window.localStorage.setItem(SIDEBAR_KEY, next ? "collapsed" : "expanded");
+  } catch {
+    // Ignore persistence failures.
+  }
+  collapsedListeners.forEach((listener) => listener());
+}
+
 export function Sidebar({
   orgSlug,
   orgName,
@@ -64,37 +99,31 @@ export function Sidebar({
   role: "SUPER_ADMIN" | "MEMBER";
 }) {
   const pathname = usePathname();
-  // Lazy initializer (not an effect): reads persisted state once, and the
-  // typeof guard keeps server prerendering safe. No setState-in-effect.
-  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("cursus-sidebar") === "collapsed";
-    } catch {
-      return false;
-    }
-  });
+  // Hydration-safe persisted state (same pattern as DashboardGreeting):
+  // the server snapshot is always expanded so SSR HTML matches first
+  // render; the client resolves the stored value once per page load.
+  // A lazy useState initializer here would mismatch for anyone with a
+  // collapsed sidebar persisted.
+  const collapsed = React.useSyncExternalStore(
+    subscribeCollapsed,
+    getCollapsedSnapshot,
+    () => false,
+  );
 
   function toggle() {
-    setCollapsed((c) => {
-      try {
-        window.localStorage.setItem(
-          "cursus-sidebar",
-          c ? "expanded" : "collapsed",
-        );
-      } catch {
-        // Ignore persistence failures.
-      }
-      return !c;
-    });
+    setCollapsedValue(!collapsed);
   }
 
   const isAdmin = role === "SUPER_ADMIN";
 
   return (
+// Viewport-locked: sticky + full viewport height, so long page content
+// scrolls past while the sidebar stays put. Internal overflow handles
+// short viewports. (min-h-screen here would stretch with the page and
+// scroll away — the reported bug.)
     <aside
       className={cn(
-        "flex min-h-screen shrink-0 flex-col gap-1 border-r border-[#e5e2dc] bg-[#f1efeb] p-3 transition-[width] duration-200",
+        "sticky top-0 flex h-screen shrink-0 flex-col gap-1 overflow-y-auto border-r border-[#e5e2dc] bg-[#f1efeb] p-3 transition-[width] duration-200",
         collapsed ? "w-[68px]" : "w-60",
       )}
     >

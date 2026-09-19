@@ -1,6 +1,6 @@
-// Cursus — Prisma schema (source of truth, see PRD §4).
+// Cursus — Prisma schema (source of truth for the data model).
 //
-// Design notes (do not "fix" without reading PRD §4/§9):
+// Design notes (do not "fix" without understanding the query budget):
 // - Metric uses BigInt autoincrement PK, NOT cuid(). It is the highest-volume
 //   table by orders of magnitude; a sequential integer PK is smaller and faster
 //   to index than text CUIDs. Every other table uses cuid() for safer,
@@ -10,7 +10,7 @@
 // - config/summary are Json to avoid per-metric-key migrations.
 // - One org per user in v1 (User.orgId is a plain required field, no join
 //   table) — keeps every auth check a single-column comparison.
-// - Postgres is required, not optional (PRD §3): joins + transactions for
+// - Postgres is required, not optional: joins + transactions for
 //   runs/metrics/projects/orgs/roles. No relational-DB-free variant.
 
 generator client {
@@ -37,7 +37,7 @@ enum RunStatus {
 model Org {
   id        String    @id @default(cuid())
   name      String
-  // URL slug for /[org]/... dashboard routes (PRD §7.1). Path-based, not
+  // URL slug for /[org]/... dashboard routes. Path-based, not
   // subdomain — simpler for self-hosters behind arbitrary reverse proxies.
   slug      String    @unique
   createdAt DateTime  @default(now())
@@ -49,8 +49,8 @@ model Org {
 }
 
 // Deployment-wide singleton flags (one row, id = "global"). Owns the
-// onboarding kill-switch (see docs/prd-onboarding.md) — checked before any
-// org exists, so it cannot live on Org.
+// onboarding kill-switch (checked before any
+// org exists, so it cannot live on Org).
 model GlobalSettings {
   id                 String  @id
   onboardingDisabled Boolean @default(false)
@@ -129,15 +129,15 @@ model Run {
   config      Json      @default("{}")
   tags        String[]  @default([])
   // Denormalized last-known value per metric key, for fast list views.
-  // Keeps the run-list view O(runs), not O(runs × metrics) — see PRD §7.5/§9.
-  // Any PR adding a new "at a glance" run-list column must update summary
-  // where metrics are written, not join Metric at read time.
+  // Keeps the run-list view O(runs), not O(runs × metrics) — new
+  // "at a glance" run-list columns must update summary where metrics are
+  // written, not join Metric at read time.
   summary     Json      @default("{}")
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])
   startedAt   DateTime  @default(now())
   finishedAt  DateTime?
-  updatedAt   DateTime  @updatedAt // heartbeat target, see PRD §6.3
+  updatedAt   DateTime  @updatedAt // heartbeat target for stale-run detection
 
   metrics     Metric[]
   artifactsProduced ArtifactVersion[]
@@ -203,8 +203,8 @@ model GroupMember {
 // Append-only record of sensitive actions (today: API key lifecycle —
 // created, rotated, revoked). Powers the History dialog so revoked keys
 // don't clutter the active-keys table. Rows are never updated or deleted
-// by the app; actor attribution uses Restrict (like runs) since user rows
-// are never hard-deleted either.
+// by the app; actor attribution uses Restrict (like runs) since hard-deleting
+// a user reassigns their audit entries to the acting admin first.
 
 model AuditEvent {
   id         String   @id @default(cuid())

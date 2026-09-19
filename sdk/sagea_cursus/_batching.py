@@ -1,6 +1,6 @@
 """Background flush queue — batching logic, unit-testable with a fake client.
 
-PRD §8.1/§9: flush every 5s or every 50 points (whichever first); the server
+Flush every 5s or every 50 points (whichever first); the server
 does one bulk insert per batch. Plain ``threading`` queue + timer — no
 asyncio, so this works in every training script including ones without an
 event loop.
@@ -17,7 +17,7 @@ from typing import Any, Callable
 FLUSH_INTERVAL_S = 5.0
 FLUSH_MAX_POINTS = 50
 # Bounded retries on network failure: warn + drop, never raise into user code
-# (PRD §6/§8.1 — the single most important SDK reliability property).
+# — the single most important SDK reliability property.
 MAX_RETRIES = 3
 
 

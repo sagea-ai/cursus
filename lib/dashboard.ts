@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { projectVisibilityFilter, runVisibilityFilter } from "@/lib/groups";
 import { INVITE_PENDING_HASH } from "@/lib/password";
 
-// Dashboard aggregates (docs/prd-dashboard.md §6). Every number derives
+// Dashboard aggregates. Every number derives
 // from bounded aggregate queries — groupBy/count/sum-shaped reads, one
 // capped list — never from loading run rows. Visibility scoping applies to
 // all counts: a member must not infer hidden runs from dashboard totals.

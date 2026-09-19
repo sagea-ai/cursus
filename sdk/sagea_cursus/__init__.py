@@ -1,6 +1,6 @@
 """Public SDK surface: init, log, finish, log_artifact, config.
 
-``__all__`` enforces the barebones contract (PRD §8.2) — everything else is
+``__all__`` enforces the minimal contract — everything else is
 underscore-prefixed and private.
 """
 

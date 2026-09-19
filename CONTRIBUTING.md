@@ -13,6 +13,9 @@ nobody has to guess.
 - **TypeScript strict**, no `any` without a commented justification.
 - **Lint + format are blocking**: `npm run lint`, `npm run format:check`
   (Prettier), `ruff check` + `ruff format --check` in `sdk/`.
+- **`docs/` holds product docs only** (platform + SDK). Planning artifacts
+  (PRDs, gap analyses, roadmaps) go in issues, never in `docs/` —
+  `npm run lint:docs` enforces this in CI.
 - **UI is shadcn/ui + react-icons only.** `npm run lint:deps` fails the build
   on `lucide-react`, MUI, Chakra, Ant, Mantine, etc. New shadcn-style
   primitives go in `components/ui/` using `cn()` from `lib/utils`.
@@ -21,9 +24,9 @@ nobody has to guess.
   → 403 is a named test case, not an assumption).
 - **No N+1 at the API layer**; new list views must read denormalized fields
   (e.g. `Run.summary`), never join the `Metric` table per row.
-- **Check non-goals first** (README / PRD §1.3): sweeps, registries,
+- **Check non-goals first** (README): sweeps, registries,
   per-project ACLs, alerting, etc. are out for v1. Changing non-goals
-  requires updating the PRD, not just merging a PR.
+  needs maintainer agreement in the PR/issue, not just code.
 - **Conventional Commits** (`feat:` / `fix:` / `chore:`) for changelog hygiene.
 
 ## Running the suites

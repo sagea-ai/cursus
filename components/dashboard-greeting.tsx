@@ -82,7 +82,7 @@ const clientToday: string | null =
   typeof window === "undefined" ? null : pickToday();
 
 function subscribeGreeting() {
-  return () => { };
+  return () => {};
 }
 
 export function DashboardGreeting({ name }: { name: string }) {
@@ -103,9 +103,7 @@ export function DashboardGreeting({ name }: { name: string }) {
         {greeting}, {name}
       </h1>
 
-      <p className="text-xs text-muted-foreground">
-        {today}
-      </p>
+      <p className="text-xs text-muted-foreground">{today}</p>
     </div>
   );
 }

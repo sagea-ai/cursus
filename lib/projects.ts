@@ -46,7 +46,7 @@ export async function listProjects(
   const orgId = await orgIdFor(session, orgSlug);
   // Bounded to TWO queries no matter how many runs exist: the project rows,
   // then one grouped aggregation. The old shape (include every run row)
-  // grew linearly with training volume — exactly the table this PRD scales.
+  // grew linearly with training volume — exactly the table this avoids.
   const projects = await db.project.findMany({
     where: { orgId, ...projectVisibilityFilter(session) },
     orderBy: { createdAt: "desc" },

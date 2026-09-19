@@ -1,4 +1,5 @@
-// Chart downsampling (PRD §7.10/§9).
+// Chart downsampling: stride-reduce indexed (runId, key, step) reads so a
+// 100k-step run never ships 100k points to the browser.
 // A run with 100k steps must never ship 100k points to the browser —
 // render at most a few thousand points per line. v1 uses deterministic
 // stride-based downsampling server-side (bounded payload regardless of run

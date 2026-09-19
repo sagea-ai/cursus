@@ -60,9 +60,7 @@ export function StatusMixChart({
               style={{ background: COLORS[entry.status] ?? "#78716c" }}
             />
             <span className="font-medium">{entry.status}</span>
-            <span className="ml-auto text-muted-foreground">
-              {entry.count}
-            </span>
+            <span className="ml-auto text-muted-foreground">{entry.count}</span>
           </li>
         ))}
       </ul>

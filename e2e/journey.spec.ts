@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-// Full critical journey on a FRESH database (PRD §10.2):
+// Full critical journey on a FRESH database:
 // onboarding UI → login → project → API key → SDK-style run logging →
 // run list → detail/charts → rename → compare → invite member → accept →
 // restricted permissions. Requires E2E_DATABASE_URL (throwaway postgres);

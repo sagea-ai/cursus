@@ -55,7 +55,8 @@ Point `DATABASE_URL` at a managed Postgres (Vercel Postgres, Neon, or
 Supabase) and set `SESSION_SECRET` to a random value. Run migrations once
 with `npx prisma migrate deploy` against that database.
 
-SDK (distribution name `sagea-cursus`; `cursus` is taken on PyPI):
+SDK (distribution name `sagea-cursus`; `cursus` is taken on PyPI).
+Full usage guide: [`docs/sdk.md`](./docs/sdk.md).
 
 ```bash
 pip install sagea-cursus
@@ -76,7 +77,7 @@ cursus.finish()
 - `lib/`: one Prisma client (`db.ts`), one auth guard (`auth.ts`), shared
   Zod validation (`validation.ts`), run/team/key/project services, pure
   downsampling/summary helpers with unit tests
-- `prisma/schema.prisma`: source of truth for the data model (PRD §4)
+- `prisma/schema.prisma`: source of truth for the data model
 - `sdk/`: `sagea_cursus` Python package (`init`/`log`/`finish`/`config`)
 - `e2e/`: Playwright critical-journey suite (bootstrap → runs → compare →
   invite → restricted member)

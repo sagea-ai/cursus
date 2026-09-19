@@ -5,8 +5,8 @@ import { hashApiKey, isApiKeyFormat, type Session } from "@/lib/auth";
 import { isUsablePasswordHash } from "@/lib/password";
 import { getSessionFromRequest } from "@/lib/session";
 
-// API-key authentication for SDK-originated requests (PRD §6).
-// API keys are NEVER valid for team-management endpoints (§6.2) — those are
+// API-key authentication for SDK-originated requests.
+// API keys are NEVER valid for team-management endpoints — those are
 // session-only. This module serves ingestion routes only.
 //
 // NOTE: callers pass `request.headers.get("authorization")` from the Route
@@ -53,7 +53,7 @@ export async function authenticateApiKey(
   if (!key || key.revokedAt) {
     throw new KeyAuthError(401, "invalid or revoked API key");
   }
-  // Live role lookup (PRD §5.2): inherit the owning user's CURRENT role so
+  // Live role lookup: inherit the owning user's CURRENT role so
   // demotion immediately restricts existing keys. One extra join, worth it.
   await db.apiKey.update({
     where: { id: key.id },
@@ -111,7 +111,7 @@ export interface RequestAuth {
 }
 
 /**
- * Two auth modes on the same API surface (PRD §6): dashboard requests carry
+ * Two auth modes on the same API surface: dashboard requests carry
  * the session cookie, SDK requests carry a Bearer key. Session wins when both
  * are present. Team/key-management routes must NOT use this — they are
  * session-only by design (use getLiveSession + requireRole).

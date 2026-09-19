@@ -48,7 +48,12 @@ export function TopProjectsChart({
             ]}
             contentStyle={{ borderRadius: 8, fontSize: 12 }}
           />
-          <Bar dataKey="runs" fill="#1976FD" radius={[0, 4, 4, 0]} barSize={16} />
+          <Bar
+            dataKey="runs"
+            fill="#1976FD"
+            radius={[0, 4, 4, 0]}
+            barSize={16}
+          />
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">

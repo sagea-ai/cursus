@@ -1,4 +1,5 @@
-// Run.summary merge logic (PRD §4/§7.5/§9).
+// Run.summary merge logic: last-known value per metric key, kept fresh on
+// every log batch so list views never touch the Metric table.
 // summary is a denormalized last-known-value-per-key map so the run-list
 // view stays O(runs) instead of O(runs × metrics). Updated on every log
 // batch; read by the run list without touching the Metric table.

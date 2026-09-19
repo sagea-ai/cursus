@@ -45,6 +45,9 @@ jobs:
       - name: Dependency guard (shadcn/react-icons only)
         run: npm run lint:deps
 
+      - name: Docs guard (no PRDs in docs/)
+        run: npm run lint:docs
+
       - name: Lint
         run: npm run lint
 

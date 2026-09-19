@@ -2,7 +2,7 @@
 
 Run: RUN_CURSUS_INTEGRATION=1 CURSUS_API_KEY=... CURSUS_BASE_URL=... pytest -m integration
 Catches drift between SDK expectations and actual server behavior — the thing
-mocked unit tests can't catch (PRD §10.2).
+mocked unit tests can't catch.
 """
 
 from __future__ import annotations

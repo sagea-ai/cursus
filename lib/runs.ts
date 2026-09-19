@@ -24,7 +24,7 @@ import { ApiError } from "@/lib/http";
 
 // Thin route handlers live in app/api (validate → auth → call service →
 // return); everything testable lives here. No N+1: every read uses a single
-// query with select/include (PRD §9). Every run read applies
+// query with select/include. Every run read applies
 // runVisibilityFilter (groups); every run write goes through the
 // assertRunWritable gate.
 
@@ -32,7 +32,7 @@ export const API_VERSION = 1;
 
 /**
  * Minutes of heartbeat/log silence after which a RUNNING run is declared
- * dead (PRD dead-run detection). The SDK heartbeats every 30s independently
+ * dead (stale-run detection). The SDK heartbeats every 30s independently
  * of training progress, so 15 minutes means 30 consecutive missed beats:
  * short pauses (GC, suspend, slow eval) can never trip it, while a killed
  * process surfaces within a quarter hour. No cron or job queue in v1 —
@@ -87,7 +87,7 @@ export async function createRun(
     groupId = group.id;
   }
   const slug = slugify(input.project) || "default";
-  // Deliberate upsert-on-first-log (PRD §7.2): the fastest path to a first
+  // Deliberate upsert-on-first-log: the fastest path to a first
   // project is calling init() from a script. Visibility-aware: a hidden
   // project never resolves (and a colliding hidden slug surfaces as the
   // same 404 as a missing one — no oracle either way).
@@ -177,7 +177,7 @@ export async function logBatch(
     {},
     input.points.map((p) => ({ key: p.key, value: p.value })),
   );
-  // Single bulk insert per batch (PRD §9) — never one round-trip per point —
+  // Single bulk insert per batch — never one round-trip per point —
   // plus an ATOMIC jsonb summary merge in the same transaction. A read-then-
   // write here would lose keys when two flushes for one run interleave
   // (timer + size triggers); `||` merges server-side with no read at all.
@@ -251,7 +251,7 @@ export async function listRuns(
   if (!project) throw new KeyAuthError(404, "project not found");
   // Dead-run sweep first, so the page below never shows a stale RUNNING.
   await markStaleRuns(auth, project.id);
-  // Cursor-based pagination (PRD §9). The cursor filter must match the
+  // Cursor-based pagination. The cursor filter must match the
   // ordering in every mode, otherwise rows repeat or vanish across pages.
   let cursorFilter = {};
   if (opts.cursor) {
@@ -342,7 +342,7 @@ export async function getMetrics(
       ...(opts.afterStep !== undefined ? { step: { gt: opts.afterStep } } : {}),
     },
     orderBy: { step: "asc" },
-    // Select step/value only — never ship the BigInt PK to JSON (PRD §4).
+    // Select step/value only — never ship the BigInt PK to JSON.
     select: { step: true, value: true },
   });
   const points = rows.map((r) => ({ step: r.step, value: r.value }));

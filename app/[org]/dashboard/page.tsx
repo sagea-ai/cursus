@@ -229,8 +229,7 @@ cursus.finish()`}
               <CardTitle className="text-base">Needs attention</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
-              {stats.crashedWeek.length === 0 &&
-              stats.pendingInvites === 0 ? (
+              {stats.crashedWeek.length === 0 && stats.pendingInvites === 0 ? (
                 <p className="text-muted-foreground">All quiet.</p>
               ) : (
                 <>

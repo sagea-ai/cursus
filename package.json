@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:deps": "node scripts/check-deps.mjs",
+    "lint:docs": "node scripts/check-docs.mjs",
     "typegen": "next typegen",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",

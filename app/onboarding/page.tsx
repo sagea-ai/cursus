@@ -9,7 +9,7 @@ import { isOnboardingOpen } from "@/lib/settings";
 // verdict in permanently.)
 export const dynamic = "force-dynamic";
 
-// First-run onboarding (docs/prd-onboarding.md). Closed states redirect to
+// First-run onboarding. Closed states redirect to
 // login; the expected email address is never rendered. The org-name
 // suggestion comes straight from env (server-side only, safe to pass down).
 export default async function OnboardingPage() {

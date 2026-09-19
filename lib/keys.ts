@@ -3,8 +3,8 @@ import { generateApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 
-// API-key self-service (PRD §7.9). Session-only routes — keys are never valid
-// for management endpoints (§6.2). Members see/revoke their own keys;
+// API-key self-service. Session-only routes — keys are never valid
+// for management endpoints. Members see/revoke their own keys;
 // super admins see/revoke every key in the org.
 
 export interface PublicKey {

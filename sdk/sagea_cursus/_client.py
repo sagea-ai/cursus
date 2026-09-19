@@ -1,6 +1,6 @@
 """HTTP client — the ONLY place that builds requests or reads key/URL config.
 
-PRD §8.2/§10.1: every public function funnels through this one client;
+Every public function funnels through this one client;
 no ad hoc ``requests.post(...)`` calls elsewhere.
 """
 
@@ -13,7 +13,7 @@ from typing import Any
 
 import requests
 
-#: Server API version this SDK understands. Checked loudly on init (PRD §8.3):
+#: Server API version this SDK understands. Checked loudly on init:
 #: a mismatch raises instead of failing confusingly mid-run.
 MIN_SERVER_API_VERSION = 1
 DEFAULT_BASE_URL = "http://localhost:3000"
@@ -73,7 +73,7 @@ class CursusClient:
             self._session.headers.update({"Authorization": f"Bearer {self.api_key}"})
 
     def check_version(self) -> None:
-        """Fail loudly on incompatible server (PRD §8.3)."""
+        """Fail loudly on incompatible server."""
         resp = self._session.get(f"{self.base_url}/api/v1/health", timeout=self.timeout)
         resp.raise_for_status()
         try:

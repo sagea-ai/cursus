@@ -1,4 +1,4 @@
-// CI dependency guard (PRD §3.1 / §10.4).
+// CI dependency guard.
 // Fails the build if lucide-react (or any non-shadcn UI library) appears in
 // package.json. shadcn/ui primitives + react-icons (react-icons/fi) only.
 // Run: npm run lint:deps. Enforced in CI as a blocking check.
@@ -24,7 +24,7 @@ const violations = BANNED.filter((name) => name in deps);
 if (violations.length > 0) {
   console.error(
     `Banned UI dependencies found: ${violations.join(", ")}. ` +
-      `Cursus uses shadcn/ui + react-icons exclusively (PRD §3.1).`,
+      `Cursus uses shadcn/ui + react-icons exclusively.`,
   );
   process.exit(1);
 }

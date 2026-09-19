@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-// Shared request-validation schemas — the TS side of the §6 API contract.
-// PRD §10.1: the contract is defined once here and imported by every route
+// Shared request-validation schemas — the TS side of the v1 API contract.
+// The contract is defined once here and imported by every route
 // handler (validate → service → return). The Python SDK mirrors these shapes
-// and is tested against them (SDK integration suite, §10.2).
+// and is tested against them in the SDK integration suite.
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

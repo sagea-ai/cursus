@@ -72,7 +72,7 @@ def test_batcher_warns_and_drops_after_bounded_retries() -> None:
 
 
 def test_log_never_raises_even_when_transport_explodes() -> None:
-    """PRD §8.1 named guarantee: logging must never block/crash training."""
+    """Core guarantee: logging must never block/crash training."""
     fake = FakeClient(fail_times=1000)
     real = run_mod.Run.__new__(run_mod.Run)
     real._finished = False

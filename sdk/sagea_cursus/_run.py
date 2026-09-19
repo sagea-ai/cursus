@@ -1,4 +1,4 @@
-"""Run object + module-level singleton wiring (PRD §8.1).
+"""Run object + module-level singleton wiring.
 
 Global ``init/log/finish`` mirror wandb ergonomics; everything else
 (batching, retry, heartbeat) is private.

@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
-// Single metric-chart component for run detail + compare (PRD §10.1).
+// Single metric-chart component for run detail + compare.
 // Recharts under the hood, SAGEA-on-light styling. Payloads are already
 // server-downsampled (max_points) — this component just renders.
 export interface ChartDatum {

@@ -117,10 +117,10 @@ export function Sidebar({
   const isAdmin = role === "SUPER_ADMIN";
 
   return (
-// Viewport-locked: sticky + full viewport height, so long page content
-// scrolls past while the sidebar stays put. Internal overflow handles
-// short viewports. (min-h-screen here would stretch with the page and
-// scroll away — the reported bug.)
+    // Viewport-locked: sticky + full viewport height, so long page content
+    // scrolls past while the sidebar stays put. Internal overflow handles
+    // short viewports. (min-h-screen here would stretch with the page and
+    // scroll away — the reported bug.)
     <aside
       className={cn(
         "sticky top-0 flex h-screen shrink-0 flex-col gap-1 overflow-y-auto border-r border-[#e5e2dc] bg-[#f1efeb] p-3 transition-[width] duration-200",

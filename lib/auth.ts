@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import type { Role } from "@/app/generated/prisma/client";
 
-// Centralized authorization guard (PRD §5.2 / §10.1).
+// Centralized authorization guard.
 // ALL role checks go through this function — never inline
 // `if (session.role !== ...)` in a route handler. Duplicated auth logic
 // across routes is how privilege-escalation bugs happen; the PR checklist
@@ -40,11 +40,11 @@ export function requireRole(
   // MEMBER is the baseline: any authenticated session satisfies it.
 }
 
-// --- API keys (SDK auth, PRD §6) -------------------------------------------
+// --- API keys (SDK auth) ---------------------------------------------------
 // Keys are random high-entropy tokens; store only a SHA-256 hash, show the
-// plaintext exactly once on creation (PRD §7.9). Role is looked up live from
+// plaintext exactly once on creation. Role is looked up live from
 // the owning user on every request — never snapshotted — so a demoted user's
-// existing keys immediately lose elevated access (PRD §5.2).
+// existing keys immediately lose elevated access.
 
 const KEY_PREFIX = "cursus_";
 

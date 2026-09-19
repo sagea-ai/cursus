@@ -2,7 +2,7 @@ import { requireRole, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 
-// Deployment settings surface (docs/prd-onboarding.md). The onboarding
+// Deployment settings surface. The onboarding
 // kill-switch is one-way: completion closes it automatically, an admin may
 // close it manually, and nothing re-opens it (PATCH false → 409).
 

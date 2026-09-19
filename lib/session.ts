@@ -3,7 +3,7 @@ import type { NextRequest, NextResponse } from "next/server";
 
 import type { Session } from "@/lib/auth";
 
-// Stateless session + invite tokens (PRD §5.3, §6).
+// Stateless session + invite tokens.
 // - Dashboard sessions: HS256 JWT in an httpOnly cookie. No server-side
 //   session table in v1 (one less thing to operate; revocation on password
 //   change is a documented v2 gap, not an oversight).

@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-// Onboarding kill-switch status (docs/prd-onboarding.md). One-way by design:
+// Onboarding kill-switch status. One-way by design:
 // an admin may close onboarding permanently, nothing re-opens it.
 export function OnboardingStatusCard({
   initialDisabled,

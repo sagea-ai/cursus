@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordFields, passwordMeetsAll } from "@/components/password-fields";
 
-// Two-step first-run onboarding (docs/prd-onboarding.md): step 1 gates on
+// Two-step first-run onboarding: step 1 gates on
 // the bootstrap email, step 2 collects identity + the twice-entered password
 // behind a must-acknowledge one-time disclaimer.
 export function OnboardingForm({ orgSuggestion }: { orgSuggestion: string }) {

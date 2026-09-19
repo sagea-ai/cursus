@@ -39,7 +39,7 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
 - Charts: `GET /api/v1/runs/:id/metrics?key=…&max_points=…` reads
   `(runId, key, step)` via its index, then stride-downsamples server-side so a
   100k-step run never ships 100k points to the browser (`lib/downsampling.ts`).
-- No N+1: every route uses one query with `select`/`include` (PRD §9).
+- No N+1: every route uses one query with `select`/`include`.
 
 ## Auth (two modes, one surface)
 
@@ -60,9 +60,16 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
   admin, allowed only while the users table is empty (permanently 403 after).
   No public signup; members join via invite links (stateless JWT, 1-hour
   expiry, single-use enforced by the invite-pending password sentinel).
-- Deactivation keeps the user row (run attribution survives) but locks the
-  password hash (`!locked-…`) and revokes all keys. The last super admin can
-  be neither demoted nor deactivated.
+- Team statuses derive from the password-hash sentinel, never a stored flag:
+  usable hash = Active, `!invite-pending` = Pending, `!locked-…` = Inactive.
+  Deactivation keeps the user row (run attribution survives) but locks the
+  hash and revokes all keys; reactivation resets to invite-pending with a
+  fresh link. Hard delete removes the row and reassigns owned runs,
+  artifacts, groups, and audit entries to the acting admin — data is never
+  destroyed with the account. The last super admin can be neither demoted,
+  deactivated, nor deleted. Invitees claim their display name once on the
+  accept page; afterwards only admins can rename (profile update strips
+  `name`).
 - Org slug (`Org.slug`) drives `/[org]/…` dashboard URLs — path-based, not
   subdomain, for self-hosters behind arbitrary reverse proxies.
 
@@ -92,5 +99,5 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
 
 Sweeps, model/dataset registry, multi-node aggregation (log from rank 0),
 per-project ACLs / custom roles, report builder, alerting, system-metrics
-auto-capture, multi-org-per-user. See PRD §1.3 — feature requests get checked
+auto-capture, multi-org-per-user. Feature requests get checked
 against that list before acceptance.

@@ -3,7 +3,7 @@ import { Pool } from "pg";
 
 import { PrismaClient } from "@/app/generated/prisma/client";
 
-// Single PrismaClient instance for the whole server process (PRD §10.1).
+// Single PrismaClient instance for the whole server process.
 // Re-instantiating per request exhausts DB connections under load —
 // the classic Next.js/Prisma footgun. Use this module everywhere;
 // never `new PrismaClient()` elsewhere.

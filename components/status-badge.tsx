@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-// Single status-badge component, used on every page (PRD §10.1 — built once,
+// Single status-badge component, used on every page (built once,
 // never copy-pasted). Colors: running = SAGEA blue pulse, finished =
 // neutral, crashed/killed = the one app-wide warning tone (--warning).
 export function StatusBadge({ status }: { status: string }) {

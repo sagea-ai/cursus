@@ -87,7 +87,7 @@ async function uniqueOrgSlug(base: string): Promise<string> {
   throw new ApiError(409, "could not allocate an org slug, retry");
 }
 
-/** First-boot provisioning (docs/prd-onboarding.md): gated, one-time.
+/** First-boot provisioning: gated, one-time.
  * Checks run in an order that keeps every refusal deterministic: flag →
  * env configured → email match → empty DB. In particular the email gate
  * precedes the users-exist check, so a wrong email is always 403 even on

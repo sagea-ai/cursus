@@ -4,7 +4,7 @@
 
 # Distribution name is `sagea-cursus` because `cursus` is taken on PyPI by an
 
-# unrelated SageMaker tool (PRD §8.5). The product is still branded "Cursus".
+# unrelated SageMaker tool. The product is still branded "Cursus".
 
 #
 

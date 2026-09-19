@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { SESSION_COOKIE, signSession } from "@/lib/session";
 
-// API-route test helpers (PRD §10.2: every route tested for success AND
+// API-route test helpers (every route tested for success AND
 // authorization-failure paths).
 //
 // These hit the database from DATABASE_URL, so they only run when

@@ -5,6 +5,11 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-20
+
+Fix: `npm run build` generates the Prisma client first, so Vercel and
+fresh checkouts build with no prior generate step.
+
 ## [0.1.2] - 2026-09-19
 
 Fix: force-dynamic rendering app-wide so the Docker image builds with no

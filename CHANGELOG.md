@@ -5,6 +5,13 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
+Added: project Workspace tab (run picker with per-run colors, overlay
+charts with legends, lazy per-section fetch), batched overlay series
+endpoint, collapsible chart sections across workspace/run/compare, and
+a 10-color chart palette. No breaking changes.
+
 ## [0.2.0] - 2026-09-21
 
 Breaking: artifact uploads move to presigned S3 tickets (init/PUT/

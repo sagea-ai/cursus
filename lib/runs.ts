@@ -326,6 +326,7 @@ export async function listRuns(
     });
   }
   const flipped = new Set(staleIds);
+  const flippedAtMs = Date.now();
   const last = page[page.length - 1];
   return {
     runs: page.map((r) => ({
@@ -338,7 +339,7 @@ export async function listRuns(
       summary: r.summary,
       createdBy: r.createdBy.email,
       startedAt: r.startedAt,
-      finishedAt: r.finishedAt,
+      finishedAt: flipped.has(r.id) ? new Date(flippedAtMs) : r.finishedAt,
     })),
     nextCursor:
       hasMore && last

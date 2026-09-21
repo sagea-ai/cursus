@@ -5,6 +5,13 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
+Breaking: artifact uploads move to presigned S3 tickets (init/PUT/
+complete, 1 GB files) — needs SDK 0.2+ and object storage configured.
+New: per-run stdout/stderr log stream with viewer tab. Legacy DB-backed
+artifact bytes keep downloading inline.
+
 ## [0.1.3] - 2026-09-20
 
 Fix: `npm run build` generates the Prisma client first, so Vercel and

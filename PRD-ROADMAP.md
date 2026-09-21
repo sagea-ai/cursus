@@ -221,7 +221,7 @@ Dead server currently means dropped points. Opt-in durability:
 ## M24 — Metric control (size S)
 
 - `cursus.define_metric(name, step_metric=..., goal="maximize|minimize",
-  summary=["min","max","last"])`: stored in run config namespace,
+summary=["min","max","last"])`: stored in run config namespace,
   honored by charts (goal drives sweep "best" + overlay defaults)
   and the workspace (goal-colored best markers — later).
 - Custom step axes ride on M19's `x_key`; define_metric is the

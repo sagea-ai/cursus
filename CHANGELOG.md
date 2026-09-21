@@ -5,6 +5,9 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+Fixed: artifact upload completion now enforces current project visibility
+and group membership, including retries of completed uploads.
+
 Changed: replace bundled MinIO with RustFS in Compose, CI, and local E2E.
 Add `S3_PUBLIC_ENDPOINT` for client-reachable signed URLs with Docker.
 Existing object data must be copied through S3 into the new RustFS volume;

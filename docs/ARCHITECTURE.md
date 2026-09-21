@@ -101,6 +101,10 @@ public-facing IDs want non-guessable CUIDs. Deliberate asymmetry — see
   export, artifacts, stats): super admins see all; members see org-wide
   projects plus their groups' projects. Missing and hidden rows are the
   same 404 — no oracle for probing slugs or ids.
+- Artifact upload completion rechecks current project visibility before
+  inspecting storage, changing status, or returning completed-version
+  metadata. Removed group members cannot reuse an earlier upload ticket
+  to bypass the completion access check.
 - Writes match reads: creating projects or logging runs inside a group
   requires membership (admins bypass); moving projects between groups is
   super-admin-only. Org-wide projects stay writable by every member.

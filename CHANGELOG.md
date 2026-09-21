@@ -5,6 +5,11 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+Changed: replace bundled MinIO with RustFS in Compose, CI, and local E2E.
+Add `S3_PUBLIC_ENDPOINT` for client-reachable signed URLs with Docker.
+Existing object data must be copied through S3 into the new RustFS volume;
+see the README migration notes.
+
 ## [0.4.0] - 2026-09-21
 
 Performance: SQL SUM/MAX aggregates replace full spans scans; run detail

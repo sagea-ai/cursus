@@ -41,7 +41,7 @@ those, Aim and MLflow are excellent and occupy similar territory.
 
 ```bash
 cp .env.example .env        # fill SESSION_SECRET + BOOTSTRAP_ADMIN_EMAIL
-docker compose up -d db minio
+docker compose up -d db rustfs
 npx prisma migrate deploy
 npm install && npm run dev  # dashboard at http://localhost:3000
 ```
@@ -49,7 +49,7 @@ npm install && npm run dev  # dashboard at http://localhost:3000
 Open http://localhost:3000/onboarding to create the org and first super
 admin, then invite the team from the Team page.
 
-### Full stack with Docker (app + Postgres + MinIO)
+### Full stack with Docker (app + Postgres + RustFS)
 
 ```bash
 export SESSION_SECRET="$(openssl rand -base64 32)"
@@ -57,14 +57,33 @@ export BOOTSTRAP_ADMIN_EMAIL="admin@example.com"
 # Point the app at the compose services. Note: compose interpolates
 # $DATABASE_URL from a repo .env file if one exists, so export it explicitly.
 export DATABASE_URL="postgresql://cursus:cursus@db:5432/cursus?schema=public"
+export S3_ENDPOINT="http://rustfs:9000"
+export S3_PUBLIC_ENDPOINT="http://localhost:9000"
 docker compose --profile selfhost up --build
 ```
 
-This starts Postgres, MinIO (S3-compatible object storage for images),
+This starts Postgres, RustFS (S3-compatible object storage for images),
 runs migrations automatically, then the app on http://localhost:3000.
-Prefer AWS/R2/GCS or another MinIO? Point the `S3_*` variables at it
+Prefer AWS/R2/GCS or another S3-compatible service? Point the `S3_*` variables at it
 instead; no code changes needed. Prebuilt images ship per release at
 `ghcr.io/sagea-ai/cursus`.
+
+RustFS exposes its S3 API on port 9000 and console on port 9001. Set
+`RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` to your credentials, and keep
+`S3_ACCESS_KEY` / `S3_SECRET_KEY` aligned if you set them explicitly.
+For remote clients, set `S3_PUBLIC_ENDPOINT` to a storage URL those clients
+can reach (use HTTPS when the dashboard uses HTTPS). `S3_ENDPOINT` is the
+server-reachable URL; both must point to the same storage service. For an
+external provider, set both endpoints to that provider's URL.
+
+#### Existing MinIO deployments
+
+RustFS uses a new `cursus-rustfs` volume. Existing MinIO data is not migrated
+automatically. Keep the old MinIO volume and a backup; copy objects through
+the S3 API into RustFS, preserving bucket names and object keys, before
+switching the app. Do not mount MinIO's data directory directly into RustFS.
+Update old `.env` credentials and endpoints to match RustFS. Postgres
+metadata and the Python SDK do not need a schema or API migration.
 
 ### Vercel
 

@@ -330,6 +330,7 @@ CURSUS_MONITOR=0 python train.py  # env opt-out (also accepts "false"/"no")
   sample. Sampler failures can never crash or block training.
 
 ## Heartbeats and stale runs
+
 While a run is active the SDK heartbeats every 30 seconds on a daemon
 thread, independent of training progress. If the process is killed (no
 `finish`, no heartbeat, no logs for 15 minutes), the next dashboard/API

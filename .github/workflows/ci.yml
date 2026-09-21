@@ -96,10 +96,7 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
-    # NOTE: no services.minio here on purpose. The minio image's default
-    # command is bare `minio` (no `server /data` args), so as a service
-    # container it exits immediately — and service containers take no
-    # command override. MinIO starts via `docker run` in the steps below.
+    # Start RustFS explicitly below and wait for its S3 health endpoint.
     env:
       DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
       E2E_DATABASE_URL: postgresql://cursus:cursus@localhost:5432/cursus_e2e?schema=public
@@ -111,7 +108,7 @@ jobs:
       S3_BUCKET: cursus-media
       S3_REGION: us-east-1
       S3_ACCESS_KEY: cursus
-      S3_SECRET_KEY: cursus-minio-secret
+      S3_SECRET_KEY: cursus-rustfs-secret
       S3_FORCE_PATH_STYLE: "true"
     steps:
       - uses: actions/checkout@v4
@@ -132,18 +129,18 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
 
-      - name: Start MinIO (object storage for the media step)
+      - name: Start RustFS (object storage for the media step)
         run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=cursus \
-            -e MINIO_ROOT_PASSWORD=cursus-minio-secret \
-            quay.io/minio/minio:latest server /data
+          docker run -d --name rustfs -p 9000:9000 \
+            -e RUSTFS_ACCESS_KEY=cursus \
+            -e RUSTFS_SECRET_KEY=cursus-rustfs-secret \
+            rustfs/rustfs:latest /data
           for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && exit 0
+            curl -sf http://localhost:9000/health && exit 0
             sleep 2
           done
-          echo "MinIO never became ready" >&2
-          docker logs minio 2>&1 | tail -20
+          echo "RustFS never became ready" >&2
+          docker logs rustfs 2>&1 | tail -20
           exit 1
 
       - name: Production build

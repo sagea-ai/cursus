@@ -10,14 +10,16 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Object storage for large bytes (media, future exports): S3-compatible API
-// only — MinIO in compose for self-host, or bring your own (AWS S3, R2, GCS
+// only — RustFS in compose for self-host, or bring your own (AWS S3, R2, GCS
 // XML API) via env creds. Bytes NEVER proxy through Next.js: the server
 // mints short-lived presigned URLs and clients PUT/GET direct to storage.
 // Postgres keeps metadata + small relational rows only (scale split).
 //
 // Required env: S3_ENDPOINT + S3_ACCESS_KEY + S3_SECRET_KEY.
 // Optional: S3_BUCKET (default cursus-media), S3_REGION (default us-east-1),
-// S3_FORCE_PATH_STYLE (default true — required for MinIO).
+// S3_FORCE_PATH_STYLE (default true for local S3-compatible storage).
+// S3_PUBLIC_ENDPOINT optionally overrides the endpoint used to sign URLs
+// for browsers/SDKs outside Docker; server operations still use S3_ENDPOINT.
 // Without endpoint/creds, storageEnabled() is false and byte routes answer
 // 503 with a clear message instead of failing obscurely mid-upload.
 
@@ -38,6 +40,7 @@ export function storageBucket(): string {
 
 let client: S3Client | null = null;
 let bucketReady: Promise<void> | null = null;
+let signingClient: S3Client | null = null;
 
 export function storageClient(): S3Client {
   if (!client) {
@@ -59,9 +62,24 @@ export function storageClient(): S3Client {
   return client;
 }
 
+/** Sign against the public host directly: rewriting a signed URL breaks SigV4. */
+function storageSigningClient(): S3Client {
+  const endpoint = env("S3_PUBLIC_ENDPOINT");
+  if (!endpoint) return storageClient();
+  if (!signingClient) {
+    signingClient = new S3Client({
+      endpoint,
+      region: env("S3_REGION") ?? "us-east-1",
+      credentials: storageClient().config.credentials,
+      forcePathStyle: (env("S3_FORCE_PATH_STYLE") ?? "true") !== "false",
+    });
+  }
+  return signingClient;
+}
+
 /** Self-provisioning bucket: HeadBucket, CreateBucket on NotFound, once per
  * process. Compose needs no init container; external S3 just works. Retries
- * startup races (MinIO still booting) with backoff — throws only when
+ * startup races (RustFS still booting) with backoff — throws only when
  * storage is genuinely unreachable. */
 export function ensureBucket(): Promise<void> {
   if (!bucketReady) {
@@ -119,7 +137,7 @@ export async function presignPut(
 ): Promise<string> {
   await ensureBucket();
   return getSignedUrl(
-    storageClient(),
+    storageSigningClient(),
     new PutObjectCommand({
       Bucket: storageBucket(),
       Key: storageKey,
@@ -135,7 +153,7 @@ export async function presignGet(
 ): Promise<string> {
   await ensureBucket();
   return getSignedUrl(
-    storageClient(),
+    storageSigningClient(),
     new GetObjectCommand({ Bucket: storageBucket(), Key: storageKey }),
     { expiresIn },
   );

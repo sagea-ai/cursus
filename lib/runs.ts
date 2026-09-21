@@ -626,3 +626,64 @@ export async function updateRunConfig(
   });
   return { id: updated.id, config: updated.config };
 }
+
+export interface OverlaySeries {
+  runId: string;
+  name: string;
+  points: { step: number; value: number }[];
+}
+
+/** Batched overlay series: one key across up to 10 runs in a single
+ * response (one indexed range scan per run, downsampled server-side).
+ * Every id must resolve to a visible run in this project or the whole
+ * request 404s — no partial series, no hidden-row oracle. Bounded at
+ * 10 runs × maxPoints (default 500) per response.
+ */
+export async function getOverlaySeries(
+  auth: GroupAuth,
+  projectSlug: string,
+  key: string,
+  runIds: string[],
+  maxPoints: number,
+): Promise<{ key: string; series: OverlaySeries[] }> {
+  const project = await db.project.findFirst({
+    where: {
+      orgId: auth.orgId,
+      slug: projectSlug,
+      ...projectVisibilityFilter(auth),
+    },
+    select: { id: true },
+  });
+  if (!project) throw new ApiError(404, "project not found");
+  const runs = await db.run.findMany({
+    where: {
+      id: { in: runIds },
+      projectId: project.id,
+      ...runVisibilityFilter(auth),
+    },
+    orderBy: { startedAt: "asc" },
+    select: { id: true, name: true },
+  });
+  if (runs.length !== runIds.length) {
+    throw new ApiError(404, "one or more runs not found");
+  }
+  const byId = new Map(runs.map((r) => [r.id, r]));
+  const series = await Promise.all(
+    runIds.map(async (id) => {
+      const rows = await db.metric.findMany({
+        where: { runId: id, key },
+        orderBy: { step: "asc" },
+        select: { step: true, value: true },
+      });
+      return {
+        runId: id,
+        name: byId.get(id)!.name,
+        points: downsample(
+          rows.map((r) => ({ step: r.step, value: r.value })),
+          maxPoints,
+        ),
+      };
+    }),
+  );
+  return { key, series };
+}

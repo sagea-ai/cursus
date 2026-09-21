@@ -504,6 +504,25 @@ test("critical journey: bootstrap to restricted member", async ({
   );
   expect(unarch.ok()).toBeTruthy();
 
+  // 6f. Workspace: run picker with colors, overlay charts, collapse.
+  await page.goto(`/${orgSlug}/e2e-proj/workspace`);
+  await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Show run-a-renamed in overlay" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Hide run-a-renamed in overlay" }),
+  ).toBeVisible();
+  await expect(page.getByText("train", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("svg").first()).toBeVisible({ timeout: 15_000 });
+  // Overlay legend carries both runs in their own colors.
+  await expect(page.getByText("run-a-renamed").first()).toBeVisible();
+  // Collapse the section: charts unmount.
+  await page.getByRole("button", { name: "Collapse train section" }).click();
+  await expect(
+    page.getByRole("button", { name: "Expand train section" }),
+  ).toBeVisible();
+
   // 7. Invite a member; accept via link; land in dashboard.
   await page.goto(`/${orgSlug}/team`);
   await page.getByRole("button", { name: "Invite Member" }).click();

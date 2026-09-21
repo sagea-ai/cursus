@@ -18,6 +18,11 @@ export function ProjectTabs({
     { label: "Overview", href: `/${orgSlug}/${projectSlug}`, exact: true },
     { label: "Runs", href: `/${orgSlug}/${projectSlug}/runs`, exact: false },
     {
+      label: "Workspace",
+      href: `/${orgSlug}/${projectSlug}/workspace`,
+      exact: false,
+    },
+    {
       label: "Artifacts",
       href: `/${orgSlug}/${projectSlug}/artifacts`,
       exact: false,

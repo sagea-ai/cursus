@@ -18,13 +18,20 @@ export interface ChartDatum {
   value: number;
 }
 
-/** Line colors, one per run/series. Run A keeps its color across a page. */
+/** Line colors, one per run/series. Run A keeps its color across a page.
+ * First five are the original set (existing views unchanged); the rest
+ * extend overlays to 10 runs with distinct hues. */
 export const CHART_PALETTE = [
   "#1976FD",
   "#0050FD",
   "#45AAFD",
   "#D97706",
   "#1C1917",
+  "#16A34A",
+  "#9333EA",
+  "#DB2777",
+  "#0D9488",
+  "#78716C",
 ];
 
 export function MetricChart({

@@ -338,6 +338,28 @@ export const metricsQuerySchema = z.object({
   after_step: z.coerce.number().int().nonnegative().optional(),
 });
 
+export const overlayChartSchema = z.object({
+  key: z.string().min(1).max(256),
+  runs: z
+    .string()
+    .min(1)
+    .max(1024)
+    .transform((s) => [
+      ...new Set(
+        s
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    ])
+    .refine((ids) => ids.length >= 1 && ids.length <= 10, {
+      message: "1–10 run ids",
+    }),
+  max_points: z.coerce.number().int().min(1).max(2000).optional().default(500),
+});
+
+export type OverlayChartQuery = z.infer<typeof overlayChartSchema>;
+
 export const exportQuerySchema = z.object({
   format: z.enum(["csv", "json"]).optional().default("csv"),
   key: z.string().min(1).max(256).optional(),

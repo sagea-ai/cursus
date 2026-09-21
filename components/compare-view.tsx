@@ -14,8 +14,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ChartSection } from "@/components/chart-section";
 import { CHART_PALETTE as PALETTE } from "@/components/metric-chart";
 
 // Compare view (§7.7): one line per run on every chart, run A's color constant
@@ -134,14 +134,9 @@ export function CompareView({ basePath }: { basePath: string }) {
         {keys.map((key) => {
           const merged = mergeSeries(metas, series, key);
           return (
-            <Card key={key}>
-              <CardHeader className="p-4 pb-0">
-                <CardTitle className="truncate font-mono text-xs font-medium">
-                  {key}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                <ResponsiveContainer width="100%" height={200}>
+            <ChartSection key={key} title={key} defaultOpen>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={merged}
                     margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
@@ -191,8 +186,8 @@ export function CompareView({ basePath }: { basePath: string }) {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              </div>
+            </ChartSection>
           );
         })}
       </div>

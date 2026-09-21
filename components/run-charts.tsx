@@ -8,6 +8,7 @@ import {
   CHART_PALETTE,
   type ChartDatum,
 } from "@/components/metric-chart";
+import { ChartSection } from "@/components/chart-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -87,9 +88,13 @@ export function RunCharts({
   return (
     <div className="flex flex-col gap-6">
       {visible.map(([group, keys]) => (
-        <section key={group} className="flex flex-col gap-3">
+        <ChartSection
+          key={group}
+          title={group}
+          count={(keys as string[]).length}
+        >
           {!expanded && (
-            <h2 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            <h2 className="sr-only font-mono text-xs uppercase tracking-wider text-muted-foreground">
               {group}
             </h2>
           )}
@@ -126,7 +131,7 @@ export function RunCharts({
               </Card>
             ))}
           </div>
-        </section>
+        </ChartSection>
       ))}
     </div>
   );

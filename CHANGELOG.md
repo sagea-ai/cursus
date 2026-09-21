@@ -5,6 +5,12 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
+Added: automatic system metrics capture (`system/` GPU/host keys,
+10 s daemon sampler, zero new dependencies, opt out via
+`monitor=False`/`CURSUS_MONITOR=0`). Roadmap PRD removed (served).
+
 Fixed: artifact upload completion now enforces current project visibility
 and group membership, including retries of completed uploads.
 

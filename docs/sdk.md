@@ -181,11 +181,17 @@ cursus.log_artifact("dataset", ["train.csv", "val.csv"], type="dataset")
   1000 files per call.
 - `type` is a free string (`"model"`, `"dataset"`, …); `description`
   is shown on the version.
+- Two-phase upload under the hood: the server mints presigned PUT
+  tickets, bytes go direct to object storage (no boto, plain
+  `requests`), then the version completes. No server body limits apply
+  — up to **1 GB per file** (YOLO-scale checkpoints included) with a
+  300 s per-file timeout.
 - Same never-raises contract: missing/unreadable files are skipped
-  with a warning, network failures warn and drop. Returns the created
-  version payload, or `None` when skipped. Uploads allow up to ~100 MB
-  per file with a longer (120 s) timeout.
-- Call before `finish()` — versions record the producing run.
+  with a warning, network failures warn and drop. Returns the completed
+  version payload, or `None` when skipped.
+- Call before `finish()` — versions record the producing run. Requires
+  a server with object storage configured (otherwise a clear 503) and
+  an SDK that speaks the ticket flow (0.2+).
 
 ## `log_image()` — log images
 

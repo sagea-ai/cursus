@@ -195,30 +195,36 @@ class CursusClient:
         resp.raise_for_status()
         return resp.json()
 
-    def create_artifact_version(
+    def request_artifact_upload(
         self,
         name: str,
-        files: list[tuple[str, bytes]],
+        files: list[dict[str, Any]],
         run_id: str | None = None,
         artifact_type: str = "model",
         description: str = "",
     ) -> dict[str, Any]:
-        """Upload one version of an artifact (multipart, requests only)."""
-        data = {
+        """Phase 1: declare files, get presigned PUT tickets (no bytes move)."""
+        body: dict[str, Any] = {
             "name": name,
             "type": artifact_type,
             "description": description,
+            "files": files,
         }
         if run_id:
-            data["run_id"] = run_id
-        multipart = [
-            ("files", (path, content, "application/octet-stream")) for path, content in files
-        ]
+            body["run_id"] = run_id
         resp = self._session.post(
-            f"{self.base_url}/api/v1/artifacts",
-            data=data,
-            files=multipart,
-            timeout=max(self.timeout, 120.0),
+            f"{self.base_url}/api/v1/artifacts/init",
+            json=body,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def complete_artifact_upload(self, version_id: str) -> dict[str, Any]:
+        """Phase 2: verify objects landed, flip the version COMPLETED."""
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/artifacts/versions/{version_id}/complete",
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()

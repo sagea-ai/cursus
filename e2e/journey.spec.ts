@@ -266,21 +266,40 @@ test("critical journey: bootstrap to restricted member", async ({
   expect(oRun.status()).toBe(200);
 
   // 4d. Attach an artifact to the first run, browse it in the UI.
-  const up = await request.post("/api/v1/artifacts", {
+  // Two-phase upload: init for tickets, PUT bytes direct to storage,
+  // complete the version.
+  const initRes = await request.post("/api/v1/artifacts/init", {
     headers,
-    multipart: {
+    data: {
       name: "e2e-weights",
       type: "model",
       description: "journey artifact",
-      run_id: runIds[0]!,
-      files: {
-        name: "best.pt",
-        mimeType: "application/octet-stream",
-        buffer: Buffer.from("e2e-bytes"),
-      },
+      run_id: runIds[0],
+      files: [
+        {
+          path: "best.pt",
+          sizeBytes: 9,
+          digest:
+            "c846f8c84b90037a99bc881986e64eb7db90382f3c6e5bbbd264e0926508d321",
+        },
+      ],
     },
   });
-  expect(up.status()).toBe(201);
+  expect(initRes.status()).toBe(201);
+  const artTicket = (await initRes.json()) as {
+    version: { id: string };
+    files: { path: string; url: string }[];
+  };
+  const artPut = await request.put(artTicket.files[0]!.url, {
+    data: Buffer.from("e2e-bytes"),
+    headers: { "Content-Type": "application/octet-stream" },
+  });
+  expect(artPut.ok()).toBeTruthy();
+  const artDone = await request.post(
+    `/api/v1/artifacts/versions/${artTicket.version.id}/complete`,
+    { headers },
+  );
+  expect(artDone.ok()).toBeTruthy();
   await page.goto(`/${orgSlug}/e2e-proj/artifacts`);
   await expect(page.getByRole("link", { name: /e2e-weights/ })).toBeVisible();
   await page.getByRole("link", { name: /e2e-weights/ }).click();

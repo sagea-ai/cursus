@@ -151,6 +151,30 @@ export async function deleteProject(
     orgId,
     projectSlug,
   );
+  // Objects first: row delete cascades version/file metadata, which would
+  // orphan the bytes. Storage failures never block the delete itself.
+  try {
+    const { deleteObjects } = await import("@/lib/storage");
+    const rows = await db.artifactFile.findMany({
+      where: {
+        version: { artifact: { projectId: project.id } },
+        storageKey: { not: null },
+      },
+      select: { storageKey: true },
+    });
+    const keys = rows
+      .map((r) => r.storageKey)
+      .filter((k): k is string => k !== null);
+    // Media objects belong to runs (cascade with them); the run rows go
+    // with the project, so purge their objects too.
+    const media = await db.mediaItem.findMany({
+      where: { run: { projectId: project.id } },
+      select: { storageKey: true },
+    });
+    await deleteObjects([...keys, ...media.map((m) => m.storageKey)]);
+  } catch {
+    // Best-effort — deterministic keys are overwritten, never duplicated.
+  }
   await db.project.delete({ where: { id: project.id } });
   return { slug: projectSlug };
 }

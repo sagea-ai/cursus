@@ -240,9 +240,9 @@ model AuditEvent {
 // Run-attached, versioned files (checkpoints, datasets, logs). What this is
 // NOT: no aliases, no lineage graph, no model registry linking — those are
 // deferred, and this schema does not pretend otherwise (no alias/edge
-// tables). File bytes live in Postgres (bytea) to keep self-hosting to one
-// database; practical cap ~100MB/file enforced at upload (see lib/artifacts).
-// An S3-compatible backend is the documented v2 escape hatch.
+// tables). File bytes live in object storage (content-addressed, see
+// lib/artifacts.ts); rows predating the S3 flow keep inline bytea. Practical
+// cap 1 GB/file enforced at upload.
 
 // --- Media (images) ----------------------------------------------------------
 // Logged images, key/step addressed like metrics. Bytes live in object
@@ -342,15 +342,19 @@ model Artifact {
 }
 
 model ArtifactVersion {
-  id            String   @id @default(cuid())
-  artifactId    String
-  artifact      Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  version       Int
+  id             String   @id @default(cuid())
+  artifactId     String
+  artifact       Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  version        Int
   // sha256 over sorted "path:digest" pairs — deterministic, no extra reads.
-  digest        String
-  sizeBytes     BigInt
-  fileCount     Int
-  description   String   @default("")
+  digest         String
+  sizeBytes      BigInt
+  fileCount      Int
+  description    String   @default("")
+  // Two-phase upload (server signs, client PUTs direct): PENDING rows hold
+  // no bytes until every file is confirmed. Legacy DB-backed versions are
+  // COMPLETED with inline data.
+  status         MediaStatus @default(PENDING)
   createdByRunId String?
   // Run deletion keeps artifact history (SetNull, not Cascade).
   createdByRun  Run?     @relation(fields: [createdByRunId], references: [id], onDelete: SetNull)
@@ -363,13 +367,16 @@ model ArtifactVersion {
 }
 
 model ArtifactFile {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   versionId String
   version   ArtifactVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
   path      String
   sizeBytes BigInt
-  digest    String   // sha256 hex of the bytes
-  data      Bytes
+  digest    String // sha256 hex of the bytes
+  // Exactly one backing store: legacy rows keep inline data, new uploads
+  // reference an S3 object (content-addressed, see lib/artifacts.ts).
+  data      Bytes?
+  storageKey String?
 
   @@unique([versionId, path])
   @@index([versionId])

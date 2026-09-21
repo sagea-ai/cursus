@@ -12,6 +12,11 @@ export async function GET(
     const { fileId } = await ctx.params;
     const auth = await authenticateRequest(request);
     const file = await downloadArtifactFile(auth, fileId);
+    // S3-backed files redirect to a presigned GET — bytes stream direct
+    // from storage, never through Next.js.
+    if (file.kind === "redirect") {
+      return Response.redirect(file.url, 307);
+    }
     const filename = file.path.split("/").pop() ?? "file";
     // Blob accepts the Buffer directly and is universally valid BodyInit.
     return new Response(new Blob([file.data]), {

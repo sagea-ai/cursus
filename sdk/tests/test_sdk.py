@@ -108,8 +108,8 @@ def test_log_artifact_uploads_and_never_raises(tmp_path) -> None:  # type: ignor
     sent: dict = {}
 
     class FakeSession:
-        def post(self, url, data=None, files=None, timeout=None):
-            sent.update(url=url, data=data, files=files)
+        def post(self, url, json=None, timeout=None):
+            sent.update(url=url, json=json)
 
             class Resp:
                 def raise_for_status(self):
@@ -122,17 +122,23 @@ def test_log_artifact_uploads_and_never_raises(tmp_path) -> None:  # type: ignor
 
     client = CursusClient(api_key="cursus_test", base_url="http://x")
     client._session = FakeSession()  # type: ignore[method-assign]
-    out = client.create_artifact_version(name="m", files=[("best.pt", b"fake-bytes")], run_id="r1")
+    out = client.request_artifact_upload(
+        name="m",
+        files=[{"path": "best.pt", "sizeBytes": 10, "digest": "a" * 64}],
+        run_id="r1",
+    )
     assert out == {"ok": True}
-    assert sent["url"].endswith("/api/v1/artifacts")
-    assert sent["data"]["run_id"] == "r1"
-    assert sent["files"][0][0] == "files"
+    assert sent["url"].endswith("/api/v1/artifacts/init")
+    assert sent["json"]["run_id"] == "r1"
+    out2 = client.complete_artifact_upload("v1")
+    assert out2 == {"ok": True}
+    assert sent["url"].endswith("/api/v1/artifacts/versions/v1/complete")
 
     # Missing files warn instead of raising (with a run set so we reach them).
     from types import SimpleNamespace
 
     class FakeUploader:
-        def create_artifact_version(self, **kwargs):
+        def request_artifact_upload(self, **kwargs):
             raise AssertionError("should not be called without files")
 
     run_mod._set_current(SimpleNamespace(id="r", _client=FakeUploader()))
@@ -141,6 +147,46 @@ def test_log_artifact_uploads_and_never_raises(tmp_path) -> None:  # type: ignor
             warnings.simplefilter("always")
             assert cursus.log_artifact("m", [str(tmp_path / "gone.bin")]) is None
         assert any("no readable files" in str(w.message) for w in caught)
+    finally:
+        run_mod._set_current(None)
+
+
+def test_log_artifact_two_phase_puts_and_completes(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from types import SimpleNamespace
+
+    weights = tmp_path / "best.pt"
+    weights.write_bytes(b"fake-bytes")
+
+    puts = []
+
+    class FakeResp:
+        def raise_for_status(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        cursus.requests,
+        "put",
+        lambda url, **kw: puts.append((url, kw)) or FakeResp(),
+    )
+
+    class FakeUploader:
+        def request_artifact_upload(self, **kwargs):
+            assert kwargs["name"] == "m"
+            assert kwargs["files"][0]["path"] == "best.pt"
+            return {
+                "version": {"id": "v9"},
+                "files": [{"path": "best.pt", "url": "http://put/here"}],
+            }
+
+        def complete_artifact_upload(self, version_id):
+            assert version_id == "v9"
+            return {"version": {"version": 1}}
+
+    run_mod._set_current(SimpleNamespace(id="r", _client=FakeUploader()))
+    try:
+        out = cursus.log_artifact("m", [str(weights)])
+        assert out == {"version": {"version": 1}}
+        assert puts and puts[0][0] == "http://put/here"
     finally:
         run_mod._set_current(None)
 

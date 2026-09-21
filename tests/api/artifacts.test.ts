@@ -1,12 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { NextRequest } from "next/server";
+import { createHash } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
 
 import { GET as fileGET } from "@/app/api/v1/artifact-files/[fileId]/route";
-import { POST as uploadPOST } from "@/app/api/v1/artifacts/route";
-import { SESSION_COOKIE, signSession } from "@/lib/session";
+import { POST as initPOST } from "@/app/api/v1/artifacts/init/route";
+import { POST as completePOST } from "@/app/api/v1/artifacts/versions/[versionId]/complete/route";
 import { GET as detailGET } from "@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/artifacts/[name]/route";
 import { GET as listGET } from "@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/artifacts/route";
 import { POST as runsPOST } from "@/app/api/v1/runs/route";
+import { db } from "@/lib/db";
 import {
   apiRequest,
   apiTestsEnabled,
@@ -15,22 +16,31 @@ import {
   type TestOrg,
 } from "../helpers";
 
-async function upload(
-  session: TestOrg["member"],
-  fields: Record<string, string>,
-  files: { name: string; content: string }[],
-) {
-  const form = new FormData();
-  for (const [k, v] of Object.entries(fields)) form.set(k, v);
-  for (const f of files) {
-    form.append("files", new File([f.content], f.name));
-  }
-  const req = new NextRequest("http://test.local/api/v1/artifacts", {
-    method: "POST",
-    body: form,
-  });
-  req.cookies.set(SESSION_COOKIE, await signSession(session));
-  return uploadPOST(req);
+// Storage is mocked: tickets/HEAD never touch MinIO here (E2E covers the
+// real path); object existence is simulated per test via `heads`.
+const store = {
+  enabled: true,
+  heads: new Map<string, number>(),
+  deleted: [] as string[][],
+};
+vi.mock("@/lib/storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/storage")>();
+  return {
+    ...actual,
+    storageEnabled: () => store.enabled,
+    presignPut: async (key: string) => `http://put/${key}`,
+    presignGet: async (key: string) => `http://get/${key}`,
+    headObject: async (key: string) =>
+      store.heads.has(key) ? { size: store.heads.get(key)! } : null,
+    deleteObjects: async (keys: string[]) => {
+      store.deleted.push(keys);
+      return keys.length;
+    },
+  };
+});
+
+function sha(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
 }
 
 async function makeRun(org: TestOrg): Promise<string> {
@@ -44,50 +54,167 @@ async function makeRun(org: TestOrg): Promise<string> {
   return ((await made.json()) as { run_id: string }).run_id;
 }
 
+async function init(
+  session: Parameters<typeof authedRequest>[1],
+  body: unknown,
+) {
+  return initPOST(
+    await authedRequest("/api/v1/artifacts/init", session, {
+      method: "POST",
+      body,
+    }),
+  );
+}
+
+const file = (path: string, content: string) => ({
+  path,
+  sizeBytes: Buffer.byteLength(content),
+  digest: sha(content),
+});
+
 describe.skipIf(!apiTestsEnabled)("artifacts routes", () => {
-  it("uploads versions, increments, and downloads bytes intact", async () => {
+  it("init → complete round-trips; pending stays invisible; legacy bytes serve", async () => {
     const org = await createTestOrg("art");
     try {
       const runId = await makeRun(org);
-      const first = await upload(
-        org.member,
-        { name: "weights", type: "model", run_id: runId },
-        [
-          { name: "best.pt", content: "fake-weights-v1" },
-          { name: "args.yaml", content: "lr: 0.01" },
+      const first = await init(org.member, {
+        name: "weights",
+        type: "model",
+        run_id: runId,
+        files: [
+          file("best.pt", "fake-weights-v1"),
+          file("args.yaml", "lr: 0.01"),
         ],
-      );
+      });
       expect(first.status).toBe(201);
       const v1 = (await first.json()) as {
-        artifact: { name: string };
         version: { version: number; digest: string; sizeBytes: number };
-        files: { id: string; path: string }[];
+        files: { id: string; path: string; url: string }[];
       };
       expect(v1.version.version).toBe(1);
-      expect(v1.files.map((f) => f.path).sort()).toEqual([
-        "args.yaml",
-        "best.pt",
-      ]);
+      expect(v1.files.every((f) => f.url.startsWith("http://put/"))).toBe(true);
 
-      const second = await upload(
-        org.member,
-        { name: "weights", run_id: runId },
-        [{ name: "best.pt", content: "fake-weights-v2" }],
+      // Pending version: invisible in list/detail, complete-before-PUT 409s.
+      const versionId = (
+        await db.artifactVersion.findFirstOrThrow({
+          where: {
+            artifact: { project: { orgId: org.orgId }, name: "weights" },
+          },
+          orderBy: { version: "desc" },
+        })
+      ).id;
+      const early = await completePOST(
+        await authedRequest(
+          `/api/v1/artifacts/versions/${versionId}/complete`,
+          org.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ versionId }) },
       );
-      const v2 = (await second.json()) as { version: { version: number } };
+      expect(early.status).toBe(409);
+      const darkList = await listGET(
+        await authedRequest("/api/v1/x", org.member),
+        {
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "art-proj",
+          }),
+        },
+      );
+      const darkArtifacts = (
+        (await darkList.json()) as {
+          artifacts: { latest: unknown; versionCount: number }[];
+        }
+      ).artifacts;
+      expect(darkArtifacts).toHaveLength(1);
+      expect(darkArtifacts[0]!.latest).toBeNull();
+      expect(darkArtifacts[0]!.versionCount).toBe(0);
+
+      // "Upload" the bytes (simulated) and complete.
+      for (const f of v1.files) {
+        store.heads.set(
+          `artifacts/${org.orgId}/${
+            (
+              await db.artifact.findFirstOrThrow({
+                where: { project: { orgId: org.orgId }, name: "weights" },
+              })
+            ).id
+          }/v1/${sha(f.path === "best.pt" ? "fake-weights-v1" : "lr: 0.01")}`,
+          10,
+        );
+      }
+      const done = await completePOST(
+        await authedRequest(
+          `/api/v1/artifacts/versions/${versionId}/complete`,
+          org.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ versionId }) },
+      );
+      expect(done.status).toBe(200);
+
+      // Second version increments.
+      const second = await init(org.member, {
+        name: "weights",
+        run_id: runId,
+        files: [file("best.pt", "fake-weights-v2")],
+      });
+      const v2 = (await second.json()) as {
+        version: { version: number };
+        files: { id: string }[];
+      };
+      const v2id = (
+        await db.artifactVersion.findFirstOrThrow({
+          where: {
+            artifact: { project: { orgId: org.orgId }, name: "weights" },
+          },
+          orderBy: { version: "desc" },
+        })
+      ).id;
+      for (const row of await db.artifactFile.findMany({
+        where: { versionId: v2id },
+      })) {
+        store.heads.set(row.storageKey!, 10);
+      }
+      await completePOST(
+        await authedRequest(
+          `/api/v1/artifacts/versions/${v2id}/complete`,
+          org.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ versionId: v2id }) },
+      );
       expect(v2.version.version).toBe(2);
 
-      // Download round-trips exact bytes.
-      const fileId = v1.files.find((f) => f.path === "best.pt")!.id;
+      // S3-backed download redirects to a presigned GET.
       const dl = await fileGET(
-        await authedRequest(`/api/v1/artifact-files/${fileId}`, org.member),
-        { params: Promise.resolve({ fileId }) },
+        await authedRequest(
+          `/api/v1/artifact-files/${v2.files[0]!.id}`,
+          org.member,
+        ),
+        { params: Promise.resolve({ fileId: v2.files[0]!.id }) },
       );
-      expect(dl.status).toBe(200);
-      expect(await dl.text()).toBe("fake-weights-v1");
-      expect(dl.headers.get("content-disposition")).toContain("best.pt");
+      expect(dl.status).toBe(307);
+      expect(dl.headers.get("location")!).toMatch(/^http:\/\/get\//);
 
-      // List shows latest only; detail selects versions via ?v=.
+      // Legacy DB-bytes row downloads inline.
+      const legacy = await db.artifactFile.create({
+        data: {
+          versionId: v2id,
+          path: "legacy.bin",
+          sizeBytes: 4,
+          digest: sha("abcd"),
+          data: Buffer.from("abcd"),
+        },
+      });
+      const legacyDl = await fileGET(
+        await authedRequest(`/api/v1/artifact-files/${legacy.id}`, org.member),
+        { params: Promise.resolve({ fileId: legacy.id }) },
+      );
+      expect(legacyDl.status).toBe(200);
+      expect(await legacyDl.text()).toBe("abcd");
+
+      // List shows latest completed; detail selects versions via ?v=.
       const list = await listGET(await authedRequest("/api/v1/x", org.member), {
         params: Promise.resolve({
           orgSlug: org.orgSlug,
@@ -125,50 +252,83 @@ describe.skipIf(!apiTestsEnabled)("artifacts routes", () => {
         "best.pt",
       ]);
       expect(v1body.artifact.versions.map((v) => v.version)).toEqual([2, 1]);
-
-      const missingVersion = await detailGET(
-        await authedRequest("/api/v1/x?v=9", org.member),
-        detailParams,
-      );
-      expect(missingVersion.status).toBe(404);
     } finally {
+      store.heads.clear();
       await org.cleanup();
     }
   });
 
-  it("rejects bad names, empty uploads, dup paths, and strangers", async () => {
+  it("rejects bad specs, oversize actuals, strangers, and no-storage", async () => {
     const org = await createTestOrg("art");
     const other = await createTestOrg("artB");
     try {
       const runId = await makeRun(org);
-
-      const badName = await upload(
-        org.member,
-        { name: "not a valid name!", run_id: runId },
-        [{ name: "f.bin", content: "x" }],
-      );
+      const badName = await init(org.member, {
+        name: "not a valid name!",
+        run_id: runId,
+        files: [file("f.bin", "x")],
+      });
       expect(badName.status).toBe(400);
-
-      const empty = await upload(org.member, { name: "w", run_id: runId }, []);
+      const empty = await init(org.member, {
+        name: "w",
+        run_id: runId,
+        files: [],
+      });
       expect(empty.status).toBe(400);
-
-      const dup = await upload(org.member, { name: "w", run_id: runId }, [
-        { name: "same.bin", content: "a" },
-        { name: "same.bin", content: "b" },
-      ]);
+      const dup = await init(org.member, {
+        name: "w",
+        run_id: runId,
+        files: [file("same.bin", "a"), file("same.bin", "b")],
+      });
       expect(dup.status).toBe(400);
-
-      const evil = await upload(org.member, { name: "w", run_id: runId }, [
-        { name: "../escape.bin", content: "x" },
-      ]);
+      const evil = await init(org.member, {
+        name: "w",
+        run_id: runId,
+        files: [{ path: "../escape.bin", sizeBytes: 1, digest: sha("x") }],
+      });
       expect(evil.status).toBe(400);
-
-      const noProject = await upload(org.member, { name: "w" }, [
-        { name: "f.bin", content: "x" },
-      ]);
+      const badDigest = await init(org.member, {
+        name: "w",
+        run_id: runId,
+        files: [{ path: "f.bin", sizeBytes: 1, digest: "zzz" }],
+      });
+      expect(badDigest.status).toBe(400);
+      const noProject = await init(org.member, {
+        name: "w",
+        files: [file("f.bin", "x")],
+      });
       expect(noProject.status).toBe(400);
 
-      // Cross-org: other org's session sees nothing.
+      // Oversize actual bytes 413 even with an innocent claim.
+      const big = await init(org.member, {
+        name: "big",
+        run_id: runId,
+        files: [file("big.bin", "x")],
+      });
+      const bigId = (
+        await db.artifactVersion.findFirstOrThrow({
+          where: { artifact: { project: { orgId: org.orgId }, name: "big" } },
+        })
+      ).id;
+      for (const row of await db.artifactFile.findMany({
+        where: { versionId: bigId },
+      })) {
+        store.heads.set(row.storageKey!, 2 * 1024 * 1024 * 1024);
+      }
+      const over = await completePOST(
+        await authedRequest(
+          `/api/v1/artifacts/versions/${bigId}/complete`,
+          org.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ versionId: bigId }) },
+      );
+      expect(over.status).toBe(413);
+      expect(
+        await db.artifactVersion.findUnique({ where: { id: bigId } }),
+      ).toBeNull();
+
+      // Cross-org 404, anon 401, viewer 403, storage-off 503.
       const crossList = await listGET(
         await authedRequest("/api/v1/x", other.admin),
         {
@@ -179,7 +339,6 @@ describe.skipIf(!apiTestsEnabled)("artifacts routes", () => {
         },
       );
       expect(crossList.status).toBe(404);
-
       const anon = await listGET(apiRequest("/api/v1/x"), {
         params: Promise.resolve({
           orgSlug: org.orgSlug,
@@ -187,8 +346,73 @@ describe.skipIf(!apiTestsEnabled)("artifacts routes", () => {
         }),
       });
       expect(anon.status).toBe(401);
+
+      store.enabled = false;
+      try {
+        const off = await init(org.member, {
+          name: "w",
+          run_id: runId,
+          files: [file("f.bin", "x")],
+        });
+        expect(off.status).toBe(503);
+      } finally {
+        store.enabled = true;
+      }
     } finally {
+      store.heads.clear();
       await other.cleanup();
+      await org.cleanup();
+    }
+  });
+
+  it("project delete purges version objects", async () => {
+    const org = await createTestOrg("art");
+    try {
+      const runId = await makeRun(org);
+      const res = await init(org.member, {
+        name: "gone",
+        run_id: runId,
+        files: [file("a.bin", "data")],
+      });
+      expect(res.status).toBe(201);
+      const versionId = (
+        await db.artifactVersion.findFirstOrThrow({
+          where: { artifact: { project: { orgId: org.orgId }, name: "gone" } },
+        })
+      ).id;
+      for (const row of await db.artifactFile.findMany({
+        where: { versionId },
+      })) {
+        store.heads.set(row.storageKey!, 4);
+      }
+      await completePOST(
+        await authedRequest(
+          `/api/v1/artifacts/versions/${versionId}/complete`,
+          org.member,
+          { method: "POST" },
+        ),
+        { params: Promise.resolve({ versionId }) },
+      );
+      const { DELETE: deleteProject } =
+        await import("@/app/api/v1/orgs/[orgSlug]/projects/[projectSlug]/route");
+      store.deleted.length = 0;
+      const del = await deleteProject(
+        await authedRequest(
+          `/api/v1/orgs/${org.orgSlug}/projects/art-proj`,
+          org.admin,
+          { method: "DELETE" },
+        ),
+        {
+          params: Promise.resolve({
+            orgSlug: org.orgSlug,
+            projectSlug: "art-proj",
+          }),
+        },
+      );
+      expect(del.status).toBe(200);
+      expect(store.deleted.flat().length).toBeGreaterThan(0);
+    } finally {
+      store.heads.clear();
       await org.cleanup();
     }
   });

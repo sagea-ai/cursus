@@ -228,6 +228,30 @@ export const artifactUploadFieldsSchema = z.object({
 
 export type ArtifactUploadFields = z.infer<typeof artifactUploadFieldsSchema>;
 
+// Two-phase S3 upload: client-declared file specs (path/size/digest),
+// validated before any ticket is minted. Sizes/digests are re-checked on
+// complete via HeadObject existence (content trust stays with the uploader,
+// like git — tampering only corrupts their own version).
+export const artifactInitSchema = z.object({
+  name: artifactNameSchema,
+  type: z.string().min(1).max(64).optional().default("model"),
+  description: z.string().max(2000).optional().default(""),
+  project: z.string().min(1).max(128).optional(),
+  run_id: z.string().min(1).max(64).optional(),
+  files: z
+    .array(
+      z.object({
+        path: z.string().min(1).max(512),
+        sizeBytes: z.number().int().positive(),
+        digest: z.string().regex(/^[0-9a-f]{64}$/, "sha256 hex digest"),
+      }),
+    )
+    .min(1)
+    .max(1000),
+});
+
+export type ArtifactInitInput = z.infer<typeof artifactInitSchema>;
+
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(320),
   role: z.enum(["MEMBER", "VIEWER"]).optional().default("MEMBER"),

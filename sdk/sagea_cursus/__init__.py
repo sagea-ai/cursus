@@ -120,39 +120,67 @@ def log_artifact(
 ) -> dict[str, Any] | None:
     """Attach files to the current run as a new artifact version.
 
+    Two-phase upload: the server mints presigned PUT tickets, bytes go
+    direct to object storage (no boto — plain requests), then the version
+    is completed. No server body limits apply (1 GB per file).
+
     Example:
         cursus.log_artifact("yolov8m", "runs/train/weights/best.pt",
                             type="model", description="map50: 0.61")
 
     Warns + skips on failure (missing files, network); never raises into
-    user code. Returns the created version payload, or None when skipped.
+    user code. Returns the completed version payload, or None when skipped.
     """
+    import hashlib
+
     run = _get_current()
     if run is None:
         warnings.warn("cursus: log_artifact() called before init(); ignoring.")
         return None
     if isinstance(paths, (str, PathLike)):
         paths = [paths]
-    files: list[tuple[str, bytes]] = []
+    specs: list[dict[str, Any]] = []
+    blobs: list[bytes] = []
     for p in paths:
         try:
             content = Path(p).read_bytes()
         except OSError as exc:
             warnings.warn(f"cursus: log_artifact() skipping unreadable {p}: {exc}")
             continue
-        files.append((Path(p).name, content))
-    if not files:
+        if not content:
+            warnings.warn(f"cursus: log_artifact() skipping empty {p}")
+            continue
+        specs.append(
+            {
+                "path": Path(p).name,
+                "sizeBytes": len(content),
+                "digest": hashlib.sha256(content).hexdigest(),
+            }
+        )
+        blobs.append(content)
+    if not specs:
         warnings.warn("cursus: log_artifact() found no readable files; skipping.")
         return None
     try:
         # Same-package access to the run's client (the one funnel).
-        return run._client.create_artifact_version(
+        ticket = run._client.request_artifact_upload(
             name=name,
-            files=files,
+            files=specs,
             run_id=run.id,
             artifact_type=type,
             description=description,
         )
+        ticket_files = {f["path"]: f for f in ticket["files"]}
+        for spec, content in zip(specs, blobs):
+            url = ticket_files[spec["path"]]["url"]
+            resp = requests.put(
+                url,
+                data=content,
+                headers={"Content-Type": "application/octet-stream"},
+                timeout=300.0,
+            )
+            resp.raise_for_status()
+        return run._client.complete_artifact_upload(ticket["version"]["id"])
     except Exception as exc:  # noqa: BLE001 — never crash training
         warnings.warn(f"cursus: log_artifact() failed (dropped): {exc}")
         return None

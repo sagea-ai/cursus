@@ -5,28 +5,38 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import {
   assertProjectActive,
+  canWriteGroup,
+  projectVisibilityFilter,
   runVisibilityFilter,
   type GroupAuth,
 } from "@/lib/groups";
 import { slugify } from "@/lib/slug";
+import {
+  deleteObjects,
+  headObject,
+  presignGet,
+  presignPut,
+  storageEnabled,
+} from "@/lib/storage";
 import type { ArtifactUploadFields } from "@/lib/validation";
 
-// Artifacts v1: run-attached versioned files. Deliberately NOT a registry:
-// no aliases, no lineage edges, no cross-project linking. Bytes live in
-// Postgres (bytea) so self-hosting stays one database; the per-file cap
-// below is the load-bearing constraint — an S3-compatible backend is the
-// documented v2 escape hatch, not a v1 fallback.
+// Artifacts: run-attached versioned files. Deliberately NOT a registry:
+// no aliases, no lineage edges, no cross-project linking.
+//
+// Bytes live in object storage (lib/storage.ts), metadata in Postgres —
+// the server only signs presigned URLs, clients PUT/GET direct. Two-phase
+// upload (init → PUT → complete) keeps storage leak-free: PENDING rows
+// hold no bytes, re-inits allocate new versions, stale PENDING versions
+// are swept lazily. Rows predating this flow keep inline DB bytes and
+// download straight from Postgres.
 
-export const MAX_ARTIFACT_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const MAX_ARTIFACT_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB
 export const MAX_FILES_PER_VERSION = 1000;
 
-export interface UploadFile {
+export interface UploadFileSpec {
   path: string;
-  data: Uint8Array;
-}
-
-function sha256Hex(data: Uint8Array): string {
-  return createHash("sha256").update(data).digest("hex");
+  sizeBytes: number;
+  digest: string;
 }
 
 function cleanPath(raw: string): string {
@@ -35,6 +45,25 @@ function cleanPath(raw: string): string {
     throw new ApiError(400, `invalid file path: ${raw}`);
   }
   return path;
+}
+
+function requireStorage(): void {
+  if (!storageEnabled()) {
+    throw new ApiError(
+      503,
+      "artifacts require object storage (S3_ENDPOINT/S3_ACCESS_KEY/S3_SECRET_KEY)",
+    );
+  }
+}
+
+/** Content-addressed object key: identical bytes dedupe to one object. */
+export function artifactStorageKey(
+  orgId: string,
+  artifactId: string,
+  version: number,
+  digest: string,
+): string {
+  return `artifacts/${orgId}/${artifactId}/v${version}/${digest}`;
 }
 
 export interface CreatedVersion {
@@ -49,19 +78,30 @@ export interface CreatedVersion {
   files: { id: string; path: string; sizeBytes: number }[];
 }
 
-export async function createArtifactVersion(
+export interface UploadTicket {
+  id: string;
+  path: string;
+  url: string;
+  headers: { "Content-Type": string };
+}
+
+export interface RequestedVersion {
+  artifact: { id: string; name: string; type: string };
+  version: {
+    id: string;
+    version: number;
+    digest: string;
+    sizeBytes: number;
+    fileCount: number;
+    createdByRunId: string | null;
+  };
+  files: UploadTicket[];
+}
+
+async function resolveUploadProject(
   auth: GroupAuth & { userId: string },
   fields: ArtifactUploadFields,
-  uploads: UploadFile[],
-): Promise<CreatedVersion> {
-  requireRole(auth, "MEMBER");
-  if (uploads.length === 0) throw new ApiError(400, "no files uploaded");
-  if (uploads.length > MAX_FILES_PER_VERSION) {
-    throw new ApiError(
-      400,
-      `at most ${MAX_FILES_PER_VERSION} files per version`,
-    );
-  }
+): Promise<{ projectId: string; runId: string | null; orgId: string }> {
   // Resolve the owning project: explicit slug wins, else the run's project.
   let projectId: string | null = null;
   let runId: string | null = null;
@@ -81,29 +121,81 @@ export async function createArtifactVersion(
   }
   if (fields.project) {
     const slug = slugify(fields.project);
-    const project = await db.project.findUnique({
-      where: { orgId_slug: { orgId: auth.orgId, slug } },
-      select: { id: true },
+    const project = await db.project.findFirst({
+      where: {
+        orgId: auth.orgId,
+        slug,
+        ...projectVisibilityFilter(auth),
+      },
+      select: { id: true, groupId: true },
     });
     if (!project) throw new ApiError(404, "project not found");
     if (projectId && projectId !== project.id) {
       throw new ApiError(400, "run_id and project disagree");
     }
+    if (
+      project.groupId &&
+      auth.role !== "SUPER_ADMIN" &&
+      !(await canWriteGroup(auth, project.groupId))
+    ) {
+      throw new ApiError(403, "not a member of this project's group");
+    }
     projectId = project.id;
   }
   if (!projectId) throw new ApiError(400, "project or run_id is required");
+  const orgId = auth.orgId;
   await assertProjectActive(projectId);
+  // Run-resolved projects inherit the same write rule: grouped projects
+  // need membership, not just visibility.
+  const owner = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { groupId: true },
+  });
+  if (
+    owner.groupId &&
+    auth.role !== "SUPER_ADMIN" &&
+    !(await canWriteGroup(auth, owner.groupId))
+  ) {
+    throw new ApiError(403, "not a member of this project's group");
+  }
+  return { projectId, runId, orgId };
+}
+
+/** Phase 1: validate, allocate the version, mint PUT tickets. Bytes flow
+ * client → storage; the server never sees them (no body limits, no memory
+ * spikes). Re-inits allocate a fresh version; stale PENDING versions are
+ * swept lazily (their objects were never uploaded, so nothing leaks). */
+export async function requestArtifactUpload(
+  auth: GroupAuth & { userId: string },
+  fields: ArtifactUploadFields,
+  specs: UploadFileSpec[],
+): Promise<RequestedVersion> {
+  requireRole(auth, "MEMBER");
+  requireStorage();
+  if (specs.length === 0) throw new ApiError(400, "no files uploaded");
+  if (specs.length > MAX_FILES_PER_VERSION) {
+    throw new ApiError(
+      400,
+      `at most ${MAX_FILES_PER_VERSION} files per version`,
+    );
+  }
+  const { projectId, runId, orgId } = await resolveUploadProject(auth, fields);
 
   const seen = new Set<string>();
-  const files = uploads.map((u) => {
-    const path = cleanPath(u.path);
+  const files = specs.map((s) => {
+    const path = cleanPath(s.path);
     if (seen.has(path)) throw new ApiError(400, `duplicate path: ${path}`);
     seen.add(path);
-    if (u.data.length === 0) throw new ApiError(400, `empty file: ${path}`);
-    if (u.data.length > MAX_ARTIFACT_FILE_BYTES) {
-      throw new ApiError(413, `file too large (max 100 MB): ${path}`);
+    if (!Number.isInteger(s.sizeBytes) || s.sizeBytes < 1) {
+      throw new ApiError(400, `empty file: ${path}`);
     }
-    return { path, data: Buffer.from(u.data), digest: sha256Hex(u.data) };
+    if (s.sizeBytes > MAX_ARTIFACT_FILE_BYTES) {
+      throw new ApiError(413, `file too large (max 1 GB): ${path}`);
+    }
+    if (!/^[0-9a-f]{64}$/.test(s.digest)) {
+      throw new ApiError(400, `bad sha256 digest: ${path}`);
+    }
+    return { path, sizeBytes: s.sizeBytes, digest: s.digest };
   });
   const digest = createHash("sha256")
     .update(
@@ -113,10 +205,7 @@ export async function createArtifactVersion(
         .join("\n"),
     )
     .digest("hex");
-  const sizeBytes = files.reduce(
-    (n, f) => n + BigInt(f.data.length),
-    BigInt(0),
-  );
+  const sizeBytes = files.reduce((n, f) => n + BigInt(f.sizeBytes), BigInt(0));
 
   // Version allocation races under concurrent uploads of the same artifact
   // name: unique(artifactId, version) rejects the loser, which retries.
@@ -148,38 +237,64 @@ export async function createArtifactVersion(
           fileCount: files.length,
           description: fields.description,
           createdByRunId: runId,
+          status: "PENDING",
           files: {
             create: files.map((f) => ({
               path: f.path,
-              sizeBytes: f.data.length,
+              sizeBytes: f.sizeBytes,
               digest: f.digest,
-              data: f.data,
+              storageKey: artifactStorageKey(
+                orgId,
+                artifact.id,
+                next,
+                f.digest,
+              ),
             })),
           },
         },
         select: {
+          id: true,
           version: true,
           digest: true,
           sizeBytes: true,
           fileCount: true,
           createdByRunId: true,
-          files: { select: { id: true, path: true, sizeBytes: true } },
+          files: { select: { id: true, path: true, storageKey: true } },
         },
       });
+      // Lazy orphan sweep: PENDING versions whose PUTs never arrived.
+      await db.artifactVersion.deleteMany({
+        where: {
+          artifactId: artifact.id,
+          status: "PENDING",
+          id: { not: created.id },
+          createdAt: { lt: new Date(Date.now() - 24 * 3600_000) },
+        },
+      });
+      const expiresIn = 3600;
+      const tickets = await Promise.all(
+        created.files.map(async (f) => ({
+          id: f.id,
+          path: f.path,
+          url: await presignPut(
+            f.storageKey!,
+            "application/octet-stream",
+            expiresIn,
+          ),
+          headers: { "Content-Type": "application/octet-stream" } as const,
+        })),
+      );
       return {
         artifact,
         version: {
+          id: created.id,
           version: created.version,
           digest: created.digest,
           sizeBytes: Number(created.sizeBytes),
           fileCount: created.fileCount,
           createdByRunId: created.createdByRunId,
         },
-        files: created.files.map((f) => ({
-          id: f.id,
-          path: f.path,
-          sizeBytes: Number(f.sizeBytes),
-        })),
+        files: tickets,
       };
     } catch (e) {
       const conflict =
@@ -192,6 +307,121 @@ export async function createArtifactVersion(
     }
   }
   throw new ApiError(409, "version conflict, retry the upload");
+}
+
+/** Phase 2: verify every object landed, then flip COMPLETED. Missing
+ * objects 409 with their paths (PUT first, then complete). Idempotent —
+ * completing twice returns the same version. */
+export async function completeArtifactUpload(
+  auth: GroupAuth & { userId: string },
+  versionId: string,
+): Promise<CreatedVersion> {
+  requireRole(auth, "MEMBER");
+  requireStorage();
+  const version = await db.artifactVersion.findFirst({
+    where: {
+      id: versionId,
+      artifact: { project: { orgId: auth.orgId } },
+    },
+    select: {
+      id: true,
+      version: true,
+      digest: true,
+      sizeBytes: true,
+      fileCount: true,
+      createdByRunId: true,
+      status: true,
+      artifact: { select: { id: true, name: true, type: true } },
+      files: {
+        select: { id: true, path: true, sizeBytes: true, storageKey: true },
+      },
+    },
+  });
+  if (!version) throw new ApiError(404, "version not found");
+  if (version.status === "COMPLETED") return toCreatedVersion(version);
+  const missing: string[] = [];
+  for (const f of version.files) {
+    if (!f.storageKey) continue;
+    const head = await headObject(f.storageKey);
+    if (!head) {
+      missing.push(f.path);
+      continue;
+    }
+    // Cap enforced on actual bytes (claims are uploader-declared): abusive
+    // objects are rejected and the version row goes with them.
+    if (head.size > MAX_ARTIFACT_FILE_BYTES) {
+      await db.artifactVersion.delete({ where: { id: version.id } });
+      await deleteObjects(
+        version.files
+          .map((x) => x.storageKey)
+          .filter((k): k is string => k !== null),
+      ).catch(() => 0);
+      throw new ApiError(413, `file too large (max 1 GB): ${f.path}`);
+    }
+  }
+  if (missing.length > 0) {
+    throw new ApiError(
+      409,
+      `bytes missing for: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""} — PUT to the ticket URLs first`,
+    );
+  }
+  const updated = await db.artifactVersion.update({
+    where: { id: version.id },
+    data: { status: "COMPLETED" },
+    select: {
+      version: true,
+      digest: true,
+      sizeBytes: true,
+      fileCount: true,
+      createdByRunId: true,
+    },
+  });
+  return toCreatedVersion({
+    ...version,
+    ...updated,
+    artifact: version.artifact,
+  });
+}
+
+function toCreatedVersion(v: {
+  artifact: { id: string; name: string; type: string };
+  version: number;
+  digest: string;
+  sizeBytes: bigint | number;
+  fileCount: number;
+  createdByRunId: string | null;
+  files: { id: string; path: string; sizeBytes: bigint | number }[];
+}): CreatedVersion {
+  return {
+    artifact: v.artifact,
+    version: {
+      version: v.version,
+      digest: v.digest,
+      sizeBytes: Number(v.sizeBytes),
+      fileCount: v.fileCount,
+      createdByRunId: v.createdByRunId,
+    },
+    files: v.files.map((f) => ({
+      id: f.id,
+      path: f.path,
+      sizeBytes: Number(f.sizeBytes),
+    })),
+  };
+}
+
+/** Purge every object for an artifact's versions (project delete already
+ * cascades the rows; callers use this so bytes don't orphan). */
+export async function purgeArtifactObjects(
+  artifactId: string,
+): Promise<number> {
+  const rows = await db.artifactFile.findMany({
+    where: { version: { artifactId }, storageKey: { not: null } },
+    select: { storageKey: true },
+  });
+  if (rows.length === 0) return 0;
+  return deleteObjects(
+    rows.map((row) => row.storageKey).filter((k): k is string => k !== null),
+  );
 }
 
 export interface ArtifactSummary {
@@ -228,13 +458,28 @@ export async function listArtifacts(
       type: true,
       description: true,
       createdAt: true,
-      _count: { select: { versions: true } },
     },
   });
   if (artifacts.length === 0) return [];
-  // One batched versions query, latest picked in JS — not N+1.
+  // Completed-version counts (PENDING uploads don't inflate the list).
+  const counts = await db.artifactVersion.groupBy({
+    by: ["artifactId"],
+    where: {
+      artifactId: { in: artifacts.map((a) => a.id) },
+      status: "COMPLETED",
+    },
+    _count: { _all: true },
+  });
+  const countByArtifact = new Map(
+    counts.map((c) => [c.artifactId, c._count._all]),
+  );
+  // One batched versions query, latest COMPLETED picked in JS — not N+1.
+  // PENDING uploads never surface in lists (nothing viewable yet).
   const versions = await db.artifactVersion.findMany({
-    where: { artifactId: { in: artifacts.map((a) => a.id) } },
+    where: {
+      artifactId: { in: artifacts.map((a) => a.id) },
+      status: "COMPLETED",
+    },
     orderBy: [{ artifactId: "asc" }, { version: "desc" }],
     select: {
       artifactId: true,
@@ -257,7 +502,7 @@ export async function listArtifacts(
       name: a.name,
       type: a.type,
       description: a.description,
-      versionCount: a._count.versions,
+      versionCount: countByArtifact.get(a.id) ?? 0,
       updatedAt: latest?.createdAt ?? a.createdAt,
       latest: latest
         ? {
@@ -313,6 +558,7 @@ export async function getArtifactDetail(
       type: true,
       description: true,
       versions: {
+        where: { status: "COMPLETED" },
         orderBy: { version: "desc" },
         select: {
           id: true,
@@ -369,24 +615,44 @@ export async function getArtifactDetail(
   };
 }
 
+export type ArtifactDownload =
+  | {
+      kind: "bytes";
+      path: string;
+      sizeBytes: number;
+      data: Uint8Array<ArrayBuffer>;
+    }
+  | { kind: "redirect"; url: string };
+
 export async function downloadArtifactFile(
   auth: { orgId: string },
   fileId: string,
-): Promise<{ path: string; sizeBytes: number; data: Uint8Array<ArrayBuffer> }> {
+): Promise<ArtifactDownload> {
   const file = await db.artifactFile.findFirst({
     where: {
       id: fileId,
-      version: { artifact: { project: { orgId: auth.orgId } } },
+      version: {
+        status: "COMPLETED",
+        artifact: { project: { orgId: auth.orgId } },
+      },
     },
-    select: { path: true, sizeBytes: true, data: true },
+    select: { path: true, sizeBytes: true, data: true, storageKey: true },
   });
   if (!file) throw new ApiError(404, "file not found");
+  // S3-backed: redirect to a presigned GET (browser fetches direct).
+  if (file.storageKey) {
+    requireStorage();
+    return { kind: "redirect", url: await presignGet(file.storageKey) };
+  }
+  // Legacy DB-backed rows serve inline bytes.
+  if (!file.data) throw new ApiError(404, "file not found");
   // Fresh copy out of the pool-backed Buffer. The cast is honest: a new
   // allocation is always ArrayBuffer-backed (never SharedArrayBuffer),
   // which is what BlobPart requires.
   const copy = new Uint8Array(file.data.byteLength);
   copy.set(file.data);
   return {
+    kind: "bytes",
     path: file.path,
     sizeBytes: Number(file.sizeBytes),
     data: copy as Uint8Array<ArrayBuffer>,
@@ -418,7 +684,7 @@ export async function getRunArtifacts(
   });
   if (!run) throw new ApiError(404, "run not found");
   const versions = await db.artifactVersion.findMany({
-    where: { createdByRunId: runId },
+    where: { createdByRunId: runId, status: "COMPLETED" },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

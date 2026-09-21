@@ -318,10 +318,17 @@ export async function completeArtifactUpload(
 ): Promise<CreatedVersion> {
   requireRole(auth, "MEMBER");
   requireStorage();
+  // Recheck current group access at completion, including completed retries:
+  // membership may have changed since the upload ticket was issued.
   const version = await db.artifactVersion.findFirst({
     where: {
       id: versionId,
-      artifact: { project: { orgId: auth.orgId } },
+      artifact: {
+        project: {
+          orgId: auth.orgId,
+          ...projectVisibilityFilter(auth),
+        },
+      },
     },
     select: {
       id: true,

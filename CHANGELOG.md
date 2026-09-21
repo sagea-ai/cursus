@@ -5,6 +5,14 @@ versioning is SemVer from 1.0 onward (0.x may break APIs between minors).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
+Performance: SQL SUM/MAX aggregates replace full spans scans; run detail
+fans out in parallel; batched compare overlays; stale flips scoped to the
+visible page; composite + trigram indexes; single-query group counts;
+opaque sort-matching cursors. No SDK surface changes (version alignment
+only).
+
 ## [0.3.0] - 2026-09-21
 
 Added: project Workspace tab (run picker with per-run colors, overlay

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sagea-cursus"
-version = "0.3.0"
+version = "0.4.0"
 description = "Cursus experiment-tracking SDK — barebones, self-hostable wandb-style init/log/finish."
 readme = "README.md"
 requires-python = ">=3.9"

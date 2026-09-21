@@ -156,6 +156,7 @@ model Run {
   metrics     Metric[]
   artifactsProduced ArtifactVersion[]
   media       MediaItem[]
+  logs        RunLog[]
 
 
   @@index([projectId])
@@ -323,6 +324,24 @@ model Sweep {
   runs        Run[]
 
   @@index([projectId])
+}
+
+// --- Run logs (stdout/stderr) ------------------------------------------------
+// Text log lines, step-addressed like metrics. Insert-only, BigInt PK for
+// cursor pagination; per-line truncation (not rejection) so logging can
+// never fail on content. Runs cascade (logs die with the run); retention
+// purge honors the same TTL cutoff as metrics.
+
+model RunLog {
+  id       BigInt   @id @default(autoincrement())
+  runId    String
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stream   String
+  step     Int?
+  text     String
+  wallTime DateTime @default(now())
+
+  @@index([runId, id])
 }
 
 model Artifact {

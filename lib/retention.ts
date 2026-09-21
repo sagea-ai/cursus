@@ -79,7 +79,12 @@ export async function purgeProjectMetrics(
   orgSlug: string,
   projectSlug: string,
   dryRun: boolean,
-): Promise<{ deleted: number; dryRun: boolean; cutoff: string }> {
+): Promise<{
+  deleted: number;
+  deletedLogs: number;
+  dryRun: boolean;
+  cutoff: string;
+}> {
   const project = await assertAdminProject(session, orgSlug, projectSlug);
   const row = await db.project.findUniqueOrThrow({
     where: { id: project.id },
@@ -94,14 +99,16 @@ export async function purgeProjectMetrics(
     run: { projectId: project.id },
   };
   if (dryRun) {
-    return {
-      deleted: await db.metric.count({ where }),
-      dryRun,
-      cutoff: cutoff.toISOString(),
-    };
+    const [deleted, deletedLogs] = await Promise.all([
+      db.metric.count({ where }),
+      db.runLog.count({ where }),
+    ]);
+    return { deleted, deletedLogs, dryRun, cutoff: cutoff.toISOString() };
   }
   // Batched BigInt-PK deletes: no statement timeouts, no memory growth.
+  // Log rows purge alongside metrics under the same cutoff.
   let deleted = 0;
+  let deletedLogs = 0;
   for (;;) {
     const batch = await db.metric.findMany({
       where,
@@ -109,12 +116,27 @@ export async function purgeProjectMetrics(
       take: PURGE_BATCH_SIZE,
       select: { id: true },
     });
-    if (batch.length === 0) break;
-    const res = await db.metric.deleteMany({
-      where: { id: { in: batch.map((m) => m.id) } },
+    const logBatch = await db.runLog.findMany({
+      where,
+      orderBy: { id: "asc" },
+      take: PURGE_BATCH_SIZE,
+      select: { id: true },
     });
-    deleted += res.count;
-    if (batch.length < PURGE_BATCH_SIZE) break;
+    if (batch.length === 0 && logBatch.length === 0) break;
+    if (batch.length > 0) {
+      const res = await db.metric.deleteMany({
+        where: { id: { in: batch.map((m) => m.id) } },
+      });
+      deleted += res.count;
+    }
+    if (logBatch.length > 0) {
+      const res = await db.runLog.deleteMany({
+        where: { id: { in: logBatch.map((m) => m.id) } },
+      });
+      deletedLogs += res.count;
+    }
+    if (batch.length < PURGE_BATCH_SIZE && logBatch.length < PURGE_BATCH_SIZE)
+      break;
   }
-  return { deleted, dryRun, cutoff: cutoff.toISOString() };
+  return { deleted, deletedLogs, dryRun, cutoff: cutoff.toISOString() };
 }

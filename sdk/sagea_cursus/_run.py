@@ -74,12 +74,14 @@ class Run:
         self.config = RunConfig(config or {})
         self.config._sync = lambda cfg: self._client.update_config(self.id, cfg)
         self._batcher = Batcher(send=lambda pts: self._client.log_batch(self.id, pts))
+        self._log_batcher = Batcher(send=lambda lines: self._client.log_text_batch(self.id, lines))
         self._finished = False
         self._hb_stop = threading.Event()
         self._hb_thread = threading.Thread(
             target=self._heartbeat_loop, name="cursus-hb", daemon=True
         )
         self._batcher.start()
+        self._log_batcher.start()
         self._hb_thread.start()
 
     def log(self, data: dict[str, float], step: int | None = None) -> None:
@@ -105,6 +107,34 @@ class Run:
         except Exception as exc:  # noqa: BLE001 — never block training
             warnings.warn(f"cursus: log() failed (dropped): {exc}")
 
+    def log_text(self, text: str, stream: str = "stdout", step: int | None = None) -> None:
+        """Queue log lines. Splits multi-line input; never raises."""
+        if self._finished:
+            warnings.warn("cursus: log_text() called after finish(); ignoring.")
+            return
+        if stream not in ("stdout", "stderr"):
+            warnings.warn(f"cursus: invalid log stream {stream!r}; using stdout.")
+            stream = "stdout"
+        try:
+            lines = [
+                {
+                    "stream": stream,
+                    "step": int(step) if step is not None else None,
+                    "text": line,
+                }
+                for line in str(text).splitlines()
+                if line.strip()
+            ]
+        except (TypeError, ValueError) as exc:
+            warnings.warn(f"cursus: invalid log_text() data dropped: {exc}")
+            return
+        if not lines:
+            return
+        try:
+            self._log_batcher.enqueue(lines)
+        except Exception as exc:  # noqa: BLE001 — never block training
+            warnings.warn(f"cursus: log_text() failed (dropped): {exc}")
+
     def finish(self, status: str = "finished") -> None:
         if self._finished:
             return
@@ -112,6 +142,7 @@ class Run:
         self._hb_stop.set()
         try:
             self._batcher.close()
+            self._log_batcher.close()
         finally:
             try:
                 # Final config lands before the status flips (finished

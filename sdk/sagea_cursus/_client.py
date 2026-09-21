@@ -169,6 +169,14 @@ class CursusClient:
         )
         resp.raise_for_status()
 
+    def log_text_batch(self, run_id: str, lines: list[dict[str, Any]]) -> None:
+        resp = self._session.post(
+            f"{self.base_url}/api/v1/runs/{run_id}/logs",
+            json={"lines": lines},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
     def create_sweep(
         self,
         project: str,

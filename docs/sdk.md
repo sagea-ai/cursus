@@ -129,6 +129,21 @@ cursus.log({"train/loss": 0.42, "train/acc": 0.91}, step=epoch)
   costs you points, never a crashed training job.
 - Calling `log()` before `init()` (or after `finish()`) warns and drops.
 
+## `log_text()` — stdout/stderr lines
+
+```python
+cursus.log_text("epoch 1 loss 0.4", step=epoch)
+cursus.log_text("NaN encountered, skipping batch", stream="stderr", step=epoch)
+```
+
+- Multi-line strings split into lines (blank lines skipped); lines
+  truncate at 4000 chars server-side instead of rejecting.
+- Batched like metrics (own background queue, 5 s / 50 lines) and
+  flushed on `finish()` — same never-raises contract.
+- View lines on the run's Logs tab: newest tail first, stdout/stderr
+  filter, load-older pagination. Lines honor the 100k-per-run cap and
+  the project's retention TTL like metrics.
+
 ## `finish()` — end the run
 
 ```python

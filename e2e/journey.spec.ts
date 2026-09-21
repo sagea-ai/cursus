@@ -349,6 +349,24 @@ test("critical journey: bootstrap to restricted member", async ({
   await page.getByRole("tab", { name: "Config" }).click();
   await expect(page.getByText("synced-mid-run").first()).toBeVisible();
 
+  // Run logs tab: lines logged via API render with stream filter.
+  const logged = await request.post(`/api/v1/runs/${runIds[0]}/logs`, {
+    headers: { Cookie: adminCookie },
+    data: {
+      lines: [
+        { stream: "stdout", step: 1, text: "epoch 1 loss 0.4" },
+        { stream: "stderr", step: 1, text: "NaN encountered" },
+      ],
+    },
+  });
+  expect(logged.status()).toBe(202);
+  await page.goto(`/${orgSlug}/e2e-proj/runs/${runIds[0]}`);
+  await page.getByRole("tab", { name: "Logs" }).click();
+  await expect(page.getByText("epoch 1 loss 0.4")).toBeVisible();
+  await expect(page.getByText("NaN encountered")).toBeVisible();
+  await page.getByRole("button", { name: "stderr", exact: true }).click();
+  await expect(page.getByText("epoch 1 loss 0.4")).toHaveCount(0);
+
   // Inline rename persists.
   await page.getByRole("tab", { name: "Charts" }).click();
   await page.getByRole("button", { name: "Rename run" }).click();

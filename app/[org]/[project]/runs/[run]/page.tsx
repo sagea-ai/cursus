@@ -5,6 +5,7 @@ import { ConfigViewer } from "@/components/config-viewer";
 import { ExportMenu } from "@/components/export-menu";
 import { MediaViewer } from "@/components/media-viewer";
 import { RunCharts } from "@/components/run-charts";
+import { RunLogs } from "@/components/run-logs";
 import { RunHeaderEditor } from "@/components/run-header-editor";
 import { RunOverview } from "@/components/run-overview";
 import { StatusBadge } from "@/components/status-badge";
@@ -12,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isNotFoundError } from "@/lib/http";
 import { getRunMediaView } from "@/lib/media";
 import { requirePageSession } from "@/lib/page-auth";
+import { listRunLogs } from "@/lib/run-logs";
 import { storageEnabled } from "@/lib/storage";
 import { getRunArtifacts } from "@/lib/artifacts";
 import { getRun } from "@/lib/runs";
@@ -31,6 +33,7 @@ export default async function RunDetailPage({
     throw e;
   }
   const produced = await getRunArtifacts(session, detail.id);
+  const logPage = await listRunLogs(session, detail.id, { limit: 500 });
   // Media viewer data rides along (presigned step URLs, 15 min). Empty for
   // runs without images — the Charts tab simply shows no media section.
   // Skipped entirely where object storage isn't configured (media is
@@ -79,6 +82,7 @@ export default async function RunDetailPage({
       <Tabs defaultValue="charts">
         <TabsList>
           <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="config">Config</TabsTrigger>
         </TabsList>
@@ -95,6 +99,19 @@ export default async function RunDetailPage({
               ))}
             </div>
           )}
+        </TabsContent>
+        <TabsContent value="logs">
+          <RunLogs
+            runId={detail.id}
+            initial={{
+              lines: logPage.lines.map((l) => ({
+                ...l,
+                wallTime: l.wallTime.toISOString(),
+              })),
+              total: logPage.total,
+              nextCursor: logPage.nextCursor,
+            }}
+          />
         </TabsContent>
         <TabsContent value="overview">
           <RunOverview

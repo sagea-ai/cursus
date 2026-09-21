@@ -38,6 +38,7 @@ def test_public_surface_is_barebones() -> None:
         "log",
         "log_artifact",
         "log_image",
+        "log_text",
         "next_trial",
     ]
 
@@ -355,3 +356,63 @@ def test_config_update_debounces_and_flushes(monkeypatch) -> None:
         warnings.simplefilter("always")
         cfg.flush()
     assert any("config sync failed" in str(w.message) for w in caught)
+
+
+def test_log_text_splits_warns_and_never_raises() -> None:
+    from types import SimpleNamespace
+
+    seen = []
+
+    class FakeTextRun:
+        def log_text(self, text, stream="stdout", step=None):
+            seen.append((text, stream, step))
+
+    run_mod._set_current(
+        SimpleNamespace(
+            id="r",
+            _client=FakeTextRun(),
+            log_text=FakeTextRun().log_text,
+        )
+    )
+    try:
+        cursus.log_text("a\n\nb", step=2)
+        cursus.log_text("x", stream="bogus")
+        # Module level passes through; the Run object normalizes + splits.
+        assert seen == [
+            ("a\n\nb", "stdout", 2),
+            ("x", "bogus", None),
+        ]
+    finally:
+        run_mod._set_current(None)
+
+
+def test_log_text_batches_through_run_object() -> None:
+    from sagea_cursus import _run as run_mod
+
+    sent = []
+
+    class FakeTextClient:
+        def log_batch(self, run_id, points):
+            pass
+
+        def log_text_batch(self, run_id, lines):
+            sent.append((run_id, lines))
+
+        def heartbeat(self, run_id):
+            pass
+
+        def finish_run(self, run_id, status="finished"):
+            pass
+
+        def update_config(self, run_id, config):
+            pass
+
+    run = run_mod.Run(client=FakeTextClient(), run_id="r", name="n", url="u", config={})
+    try:
+        run.log_text("hello\nworld", step=1)
+        run.finish()
+        assert sent and sent[0][0] == "r"
+        assert [ln["text"] for ln in sent[0][1]] == ["hello", "world"]
+        assert all(ln["step"] == 1 for ln in sent[0][1])
+    finally:
+        run_mod._set_current(None)

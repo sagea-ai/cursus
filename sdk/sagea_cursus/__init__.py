@@ -26,6 +26,7 @@ __all__ = [
     "log",
     "log_artifact",
     "log_image",
+    "log_text",
     "next_trial",
 ]
 
@@ -99,6 +100,15 @@ def log(data: dict[str, float], step: int | None = None) -> None:
         warnings.warn("cursus: log() called before init(); ignoring.")
         return
     run.log(data, step=step)
+
+
+def log_text(text: str, stream: str = "stdout", step: int | None = None) -> None:
+    """Log stdout/stderr lines. Batched like metrics; never raises."""
+    run = _get_current()
+    if run is None:
+        warnings.warn("cursus: log_text() called before init(); ignoring.")
+        return
+    run.log_text(text, stream=stream, step=step)
 
 
 def finish(status: str = "finished") -> None:

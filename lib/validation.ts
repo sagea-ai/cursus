@@ -120,6 +120,21 @@ export const updateRunConfigSchema = z.object({
 
 export type UpdateRunConfigInput = z.infer<typeof updateRunConfigSchema>;
 
+export const logTextSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        stream: z.enum(["stdout", "stderr"]).optional().default("stdout"),
+        step: z.number().int().min(0).optional(),
+        text: z.string().min(1).max(8192),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
+export type LogTextInput = z.infer<typeof logTextSchema>;
+
 export const updateRunSchema = z
   .object({
     name: z.string().min(1).max(128).optional(),

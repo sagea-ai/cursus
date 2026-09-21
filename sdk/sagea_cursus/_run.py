@@ -13,6 +13,7 @@ from typing import Any
 
 from ._batching import Batcher
 from ._client import CursusClient
+from ._system import SystemMonitor
 
 HEARTBEAT_INTERVAL_S = 30.0
 # Trailing debounce for mid-run config syncs: rapid update() bursts cost
@@ -66,15 +67,25 @@ class Run:
         name: str,
         url: str,
         config: dict[str, Any] | None = None,
+        monitor: bool = True,
     ) -> None:
         self._client = client
         self.id = run_id
         self.name = name
         self.url = url
+        self._last_step = 0
         self.config = RunConfig(config or {})
         self.config._sync = lambda cfg: self._client.update_config(self.id, cfg)
         self._batcher = Batcher(send=lambda pts: self._client.log_batch(self.id, pts))
         self._log_batcher = Batcher(send=lambda lines: self._client.log_text_batch(self.id, lines))
+        self._monitor = (
+            SystemMonitor(
+                send=lambda pts: self._batcher.enqueue(pts),
+                get_step=lambda: self._last_step,
+            )
+            if monitor
+            else None
+        )
         self._finished = False
         self._hb_stop = threading.Event()
         self._hb_thread = threading.Thread(
@@ -82,6 +93,8 @@ class Run:
         )
         self._batcher.start()
         self._log_batcher.start()
+        if self._monitor is not None:
+            self._monitor.start()
         self._hb_thread.start()
 
     def log(self, data: dict[str, float], step: int | None = None) -> None:
@@ -92,6 +105,10 @@ class Run:
         if step is None:
             warnings.warn("cursus: log() without step; using 0.")
             step = 0
+        try:
+            self._last_step = int(step)
+        except (TypeError, ValueError):
+            pass
         # Z-suffixed UTC: unambiguous for every server parser (Zod, Go, etc.).
         wall = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         try:
@@ -140,6 +157,8 @@ class Run:
             return
         self._finished = True
         self._hb_stop.set()
+        if self._monitor is not None:
+            self._monitor.stop()
         try:
             self._batcher.close()
             self._log_batcher.close()

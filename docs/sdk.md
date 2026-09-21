@@ -68,9 +68,7 @@ try:
         loss = 1.0 / (step + 1)
         cursus.log({"train/loss": loss}, step=step)
         if step % 10 == 0:
-            cursus.log(
-                {"train/loss": loss, "eval/acc": step / 100}, step=step
-            )
+            cursus.log({"train/loss": loss, "eval/acc": step / 100}, step=step)
             cursus.log_image("val/samples", f"preds_{step:03d}.png", step=step)
         if step == 50:
             cursus.config.update({"lr": 1e-5})  # synced back, debounced
@@ -168,7 +166,7 @@ cursus.finish("crashed")  # or "killed"
 ```python
 run = cursus.init(project="demo", config={"lr": 1e-4, "opt": {"beta": 0.9}})
 
-cursus.config["seed"] = 7          # same object as run.config
+cursus.config["seed"] = 7  # same object as run.config
 cursus.config.update({"lr": 1e-5})  # debounced server sync
 ```
 
@@ -185,8 +183,9 @@ cursus.config.update({"lr": 1e-5})  # debounced server sync
 ## `log_artifact()` — attach files
 
 ```python
-cursus.log_artifact("yolov8m", "runs/train/weights/best.pt",
-                    type="model", description="map50: 0.61")
+cursus.log_artifact(
+    "yolov8m", "runs/train/weights/best.pt", type="model", description="map50: 0.61"
+)
 cursus.log_artifact("dataset", ["train.csv", "val.csv"], type="dataset")
 ```
 
@@ -215,9 +214,11 @@ cursus.log_image("val/samples", "pred_epoch3.png", step=3)  # file path
 cursus.log_image("val/samples", open("a.png", "rb").read(), step=3)  # bytes
 
 from PIL import Image
+
 cursus.log_image("val/samples", Image.open("a.png"), step=3)  # PIL
 
 import numpy as np  # needs pillow installed for encoding
+
 cursus.log_image("val/samples", np.zeros((64, 64, 3), "uint8"), step=3)
 ```
 
@@ -241,8 +242,7 @@ cursus.log_image("val/samples", np.zeros((64, 64, 3), "uint8"), step=3)
 ```python
 sweep = cursus.create_sweep(
     "demo",
-    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"},
-     "batch": {"values": [16, 32]}},
+    {"lr": {"min": 1e-5, "max": 1e-1, "scale": "log"}, "batch": {"values": [16, 32]}},
     name="lr-search",  # optional; method="random" is the default
 )
 while (trial := cursus.next_trial(sweep["id"])) is not None:
@@ -278,8 +278,9 @@ while (trial := cursus.next_trial(sweep["id"])) is not None:
 
 ```python
 # Group project (membership required) with names and tags.
-run = cursus.init(project="detection", group="vision-team",
-                  name="baseline-a", tags=["v2-data"])
+run = cursus.init(
+    project="detection", group="vision-team", name="baseline-a", tags=["v2-data"]
+)
 ```
 
 - API keys are per-user; create one per machine. Keys owned by
@@ -301,8 +302,34 @@ run = cursus.init(project="detection", group="vision-team",
 | `create_sweep()`  | sweep dict (incl. `id`)                   | raises                                            |
 | `next_trial()`    | `{"trial", "config", "sweep_id"}`         | `None` when exhausted; raises on transport errors |
 
-## Heartbeats and stale runs
+## System metrics (automatic)
 
+```python
+run = cursus.init(project="demo")  # monitoring on by default
+run = cursus.init(project="demo", monitor=False)  # opt out
+```
+
+```bash
+CURSUS_MONITOR=0 python train.py  # env opt-out (also accepts "false"/"no")
+```
+
+- Every 10 s a daemon thread samples GPUs (`nvidia-smi` CSV parsing —
+  never pynvml) and host (CPU via `/proc/stat`, memory via
+  `/proc/meminfo`, disk via stdlib) and queues the points through the
+  normal metric batcher. Zero new dependencies, zero server changes:
+  system points are ordinary metrics under `system/`.
+- Keys: `system/gpu.<i>.util`, `system/gpu.<i>.temp`,
+  `system/gpu.<i>.power`, `system/gpu.<i>.mem_used_frac`,
+  `system/cpu`, `system/mem_used_frac`, `system/disk_used_frac`.
+  The run detail page auto-groups them into a System section, and
+  workspace overlays pick them up like any key.
+- Samples carry your last `log()` step, so GPU spikes align with
+  training steps on shared axes.
+- Machines without GPUs (or without `nvidia-smi`/`/proc`) warn once
+  and disable the monitor — one warning per run, never one per
+  sample. Sampler failures can never crash or block training.
+
+## Heartbeats and stale runs
 While a run is active the SDK heartbeats every 30 seconds on a daemon
 thread, independent of training progress. If the process is killed (no
 `finish`, no heartbeat, no logs for 15 minutes), the next dashboard/API

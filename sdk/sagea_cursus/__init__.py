@@ -6,6 +6,7 @@ underscore-prefixed and private.
 
 from __future__ import annotations
 
+import os
 import warnings
 from os import PathLike
 from pathlib import Path
@@ -40,6 +41,7 @@ def init(
     tags: list[str] | None = None,
     group: str | None = None,
     sweep_id: str | None = None,
+    monitor: bool = True,
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> Run:
@@ -52,6 +54,9 @@ def init(
     Pass ``group="slug"`` to log into a project inside that group (the
     project is resolved or created there; you must belong to the group).
     Omit it for org-wide projects visible to every member.
+
+    System metrics (GPU/host under ``system/``) sample automatically every
+    10 s unless ``monitor=False`` (or ``CURSUS_MONITOR=0``).
 
     Example:
         import sagea_cursus as cursus
@@ -87,6 +92,7 @@ def init(
         name=str(payload.get("name", "")),
         url=str(payload.get("url", "")),
         config=dict(config or {}),
+        monitor=monitor and os.environ.get("CURSUS_MONITOR", "1") not in ("0", "false", "no"),
     )
     _set_current(run)
     globals()["config"] = run.config

@@ -210,17 +210,44 @@ export interface ActivityOverview {
   recentRuns: ProfileRunRow[];
 }
 
-function spanMs(startedAt: Date, finishedAt: Date | null): number {
-  return Math.max(
-    0,
-    (finishedAt ?? new Date()).getTime() - startedAt.getTime(),
-  );
+/** Total + longest compute as one aggregate row (same author + visibility
+ * scope). Replaces the old narrow-scan + JS sum/max, which grew with the
+ * user's run count. */
+async function getComputeStats(session: {
+  orgId: string;
+  userId: string;
+  role: string;
+}): Promise<{ totalMs: number; longestMs: number }> {
+  const isAdmin = session.role === "SUPER_ADMIN";
+  const rows = (await db.$queryRaw`
+    SELECT
+      COALESCE(SUM(EXTRACT(EPOCH FROM (
+        COALESCE(r."finishedAt", NOW()) - r."startedAt"
+      ))), 0) AS ms,
+      COALESCE(MAX(EXTRACT(EPOCH FROM (
+        COALESCE(r."finishedAt", NOW()) - r."startedAt"
+      ))), 0) AS longest
+    FROM "Run" r
+    JOIN "Project" p ON p.id = r."projectId"
+    WHERE p."orgId" = ${session.orgId}
+      AND r."createdById" = ${session.userId}
+      AND (
+        ${isAdmin} OR p."groupId" IS NULL OR EXISTS (
+          SELECT 1 FROM group_members gm
+          WHERE gm."groupId" = p."groupId" AND gm."userId" = ${session.userId}
+        )
+      )
+  `) as { ms: number | string; longest: number | string }[];
+  return {
+    totalMs: Number(rows[0]?.ms ?? 0) * 1000,
+    longestMs: Number(rows[0]?.longest ?? 0) * 1000,
+  };
 }
 
 /** Everything the "Your activity" page needs. Same scoping as the profile
  * reads (own runs, still visible to the caller), same bounded-query budget
  * as the dashboard: one year aggregate (reused), one capped recents list
- * (reused), two groupBys, one narrow durations scan, one name lookup, and
+ * (reused), two groupBys, one compute aggregate row, one name lookup, and
  * two single-row counts (org context, points volume). */
 export async function getActivityOverview(
   session: Session | null,
@@ -241,7 +268,7 @@ export async function getActivityOverview(
     recentRuns,
     statusRows,
     topProjectRows,
-    spans,
+    compute,
     orgRuns,
     pointsLogged,
   ] = await Promise.all([
@@ -259,10 +286,7 @@ export async function getActivityOverview(
       orderBy: { _count: { projectId: "desc" } },
       take: 6,
     }),
-    db.run.findMany({
-      where: scope,
-      select: { startedAt: true, finishedAt: true },
-    }),
+    getComputeStats(session),
     db.run.count({ where: orgScope }),
     db.metric.count({
       where: { run: { ...scope, project: { orgId: session.orgId } } },
@@ -282,15 +306,12 @@ export async function getActivityOverview(
   );
 
   const totalRuns = statusRows.reduce((sum, row) => sum + row._count._all, 0);
-  const durations = spans.map((span) =>
-    spanMs(span.startedAt, span.finishedAt),
-  );
   return {
     totalRuns,
     weekRuns: activity.days.slice(-7).reduce((sum, d) => sum + d.count, 0),
     orgRuns,
-    totalComputeMs: durations.reduce((sum, ms) => sum + ms, 0),
-    longestRunMs: durations.length > 0 ? Math.max(...durations) : 0,
+    totalComputeMs: compute.totalMs,
+    longestRunMs: compute.longestMs,
     pointsLogged,
     crashed:
       statusRows.find((row) => row.status === "CRASHED")?._count._all ?? 0,

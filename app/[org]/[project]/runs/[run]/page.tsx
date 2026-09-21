@@ -32,8 +32,12 @@ export default async function RunDetailPage({
     if (isNotFoundError(e)) notFound();
     throw e;
   }
-  const produced = await getRunArtifacts(session, detail.id);
-  const logPage = await listRunLogs(session, detail.id, { limit: 500 });
+  // Fan-out, not waterfall: artifacts, logs, and media are independent
+  // once the run resolves — one RTT instead of three on high-latency DBs.
+  const [produced, logPage] = await Promise.all([
+    getRunArtifacts(session, detail.id),
+    listRunLogs(session, detail.id, { limit: 500 }),
+  ]);
   // Media viewer data rides along (presigned step URLs, 15 min). Empty for
   // runs without images — the Charts tab simply shows no media section.
   // Skipped entirely where object storage isn't configured (media is

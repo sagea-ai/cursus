@@ -300,11 +300,12 @@ describe.skipIf(!apiTestsEnabled)("artifacts routes", () => {
       expect(noProject.status).toBe(400);
 
       // Oversize actual bytes 413 even with an innocent claim.
-      const big = await init(org.member, {
+      const bigInit = await init(org.member, {
         name: "big",
         run_id: runId,
         files: [file("big.bin", "x")],
       });
+      expect(bigInit.status).toBe(201);
       const bigId = (
         await db.artifactVersion.findFirstOrThrow({
           where: { artifact: { project: { orgId: org.orgId }, name: "big" } },

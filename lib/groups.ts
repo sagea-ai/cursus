@@ -195,19 +195,33 @@ export async function listGroups(
       name: true,
       description: true,
       createdAt: true,
+      projects: { select: { id: true } },
       _count: { select: { members: true, projects: true } },
     },
   });
-  // One small count per group; group lists are tiny by nature.
-  const runCounts = await Promise.all(groups.map((g) => countGroupRuns(g.id)));
-  return groups.map((g, i) => ({
+  // Run counts in ONE grouped query (not one count per group): group
+  // runs by project, then fold projects into their groups in JS.
+  const runsByProject = new Map<string, number>();
+  const projectIds = groups.flatMap((g) => g.projects.map((p) => p.id));
+  if (projectIds.length > 0) {
+    const runCounts = await db.run.groupBy({
+      by: ["projectId"],
+      where: { projectId: { in: projectIds } },
+      _count: { _all: true },
+    });
+    for (const r of runCounts) runsByProject.set(r.projectId, r._count._all);
+  }
+  return groups.map((g) => ({
     id: g.id,
     slug: g.slug,
     name: g.name,
     description: g.description,
     memberCount: g._count.members,
     projectCount: g._count.projects,
-    runCount: runCounts[i]!,
+    runCount: g.projects.reduce(
+      (sum, p) => sum + (runsByProject.get(p.id) ?? 0),
+      0,
+    ),
     createdAt: g.createdAt,
   }));
 }

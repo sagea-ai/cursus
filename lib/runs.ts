@@ -43,30 +43,8 @@ export const API_VERSION = 1;
  */
 export const STALE_RUN_MINUTES = 15;
 
-function staleCutoff(): Date {
-  return new Date(Date.now() - STALE_RUN_MINUTES * 60_000);
-}
-
-/** Flip stale RUNNING runs in a project to CRASHED. Returns rows affected. */
-export async function markStaleRuns(
-  auth: { orgId: string },
-  projectId: string,
-): Promise<number> {
-  const project = await db.project.findFirst({
-    where: { id: projectId, orgId: auth.orgId },
-    select: { id: true },
-  });
-  if (!project) throw new KeyAuthError(404, "project not found");
-  const res = await db.run.updateMany({
-    where: {
-      projectId: project.id,
-      status: "RUNNING",
-      updatedAt: { lt: staleCutoff() },
-    },
-    // finishedAt approximates detection time; last sign of life is updatedAt.
-    data: { status: "CRASHED", finishedAt: new Date() },
-  });
-  return res.count;
+function staleCutoffMs(): number {
+  return Date.now() - STALE_RUN_MINUTES * 60_000;
 }
 
 function shortId(): string {
@@ -271,36 +249,35 @@ export async function listRuns(
     select: { id: true },
   });
   if (!project) throw new KeyAuthError(404, "project not found");
-  // Dead-run sweep first, so the page below never shows a stale RUNNING.
-  await markStaleRuns(auth, project.id);
   // Cursor-based pagination. The cursor filter must match the
   // ordering in every mode, otherwise rows repeat or vanish across pages.
+  // Cursors are opaque composites (`startedAt|id`, `name|id`) decoded
+  // directly — never bare ids (cuid ordering has nothing to do with sort
+  // ordering) and never a re-lookup (one query saved per page).
   let cursorFilter = {};
   if (opts.cursor) {
-    if (sort === "recent") {
-      cursorFilter = { id: { lt: opts.cursor } };
-    } else {
-      const c = await db.run.findUnique({
-        where: { id: opts.cursor },
-        select: { id: true, name: true, startedAt: true },
-      });
-      if (!c) throw new ApiError(400, "invalid cursor");
-      if (sort === "oldest") {
-        cursorFilter = {
-          OR: [
-            { startedAt: { gt: c.startedAt } },
-            { startedAt: c.startedAt, id: { gt: c.id } },
-          ],
-        };
-      } else if (sort === "name_asc") {
-        cursorFilter = {
-          OR: [{ name: { gt: c.name } }, { name: c.name, id: { gt: c.id } }],
-        };
-      } else {
-        cursorFilter = {
-          OR: [{ name: { lt: c.name } }, { name: c.name, id: { lt: c.id } }],
-        };
+    if (sort === "recent" || sort === "oldest") {
+      const [ts, id] = opts.cursor.split("|");
+      const at = ts ? new Date(ts) : null;
+      if (!at || Number.isNaN(at.getTime()) || !id) {
+        throw new ApiError(400, "invalid cursor");
       }
+      const cmp = sort === "recent" ? "lt" : "gt";
+      cursorFilter = {
+        OR: [
+          { startedAt: { [cmp]: at } },
+          { startedAt: at, id: { [cmp]: id } },
+        ],
+      };
+    } else {
+      const cut = opts.cursor.lastIndexOf("|");
+      const name = cut < 0 ? "" : opts.cursor.slice(0, cut);
+      const id = cut < 0 ? "" : opts.cursor.slice(cut + 1);
+      if (!name || !id) throw new ApiError(400, "invalid cursor");
+      const cmp = sort === "name_asc" ? "gt" : "lt";
+      cursorFilter = {
+        OR: [{ name: { [cmp]: name } }, { name, id: { [cmp]: id } }],
+      };
     }
   }
   const orderBy =
@@ -327,6 +304,7 @@ export async function listRuns(
       notes: true,
       summary: true,
       startedAt: true,
+      updatedAt: true,
       finishedAt: true,
       project: { select: { group: { select: { slug: true, name: true } } } },
       createdBy: { select: { email: true } },
@@ -334,11 +312,26 @@ export async function listRuns(
   });
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
+  // Stale flip scoped to the visible page (not a table-wide sweep): silent
+  // RUNNING rows older than the cutoff flip to CRASHED with one targeted
+  // update — zero writes on the common path, no read-time table scan.
+  const cutoff = staleCutoffMs();
+  const staleIds = page
+    .filter((r) => r.status === "RUNNING" && r.updatedAt.getTime() < cutoff)
+    .map((r) => r.id);
+  if (staleIds.length > 0) {
+    await db.run.updateMany({
+      where: { id: { in: staleIds }, status: "RUNNING" },
+      data: { status: "CRASHED", finishedAt: new Date() },
+    });
+  }
+  const flipped = new Set(staleIds);
+  const last = page[page.length - 1];
   return {
     runs: page.map((r) => ({
       id: r.id,
       name: r.name,
-      status: r.status,
+      status: flipped.has(r.id) ? "CRASHED" : r.status,
       tags: r.tags,
       notes: r.notes,
       group: r.project.group,
@@ -347,7 +340,12 @@ export async function listRuns(
       startedAt: r.startedAt,
       finishedAt: r.finishedAt,
     })),
-    nextCursor: hasMore ? page[page.length - 1]!.id : null,
+    nextCursor:
+      hasMore && last
+        ? sort === "name_asc" || sort === "name_desc"
+          ? `${last.name}|${last.id}`
+          : `${last.startedAt.toISOString()}|${last.id}`
+        : null,
   };
 }
 
@@ -422,10 +420,11 @@ export async function getRun(
     },
   });
   if (!run) throw new KeyAuthError(404, "run not found");
-  // Same dead-run sweep as listRuns, scoped to this one run.
+  // Single-row stale flip (conditional write, only when actually stale —
+  // not a table sweep like listRuns used to do).
   let status = run.status;
   let finishedAt = run.finishedAt;
-  if (run.status === "RUNNING" && run.updatedAt < staleCutoff()) {
+  if (run.status === "RUNNING" && run.updatedAt.getTime() < staleCutoffMs()) {
     const flipped = await db.run.update({
       where: { id: run.id },
       data: { status: "CRASHED", finishedAt: new Date() },

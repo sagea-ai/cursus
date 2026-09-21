@@ -46,37 +46,45 @@ export function CompareView({ basePath }: { basePath: string }) {
     let cancelled = false;
     async function load() {
       try {
-        const metaList: RunMeta[] = [];
-        for (const id of ids) {
-          const res = await fetch(`/api/v1/runs/${id}`);
-          if (!res.ok) throw new Error(`run ${id} not found`);
-          const body = await res.json();
-          metaList.push({
-            id: body.run.id,
-            name: body.run.name,
-            config: (body.run.config ?? {}) as Record<string, unknown>,
-            keys: (body.run.keys ?? []) as string[],
-          });
-        }
+        // Metas in parallel (the old sequential loop cost N RTTs), then
+        // ONE batched overlay request per key instead of N×K metric
+        // fetches — the same endpoint the workspace uses.
+        const projectSlug = basePath.split("/").filter(Boolean)[1] ?? "";
+        const metaList = await Promise.all(
+          ids.map(async (id) => {
+            const res = await fetch(`/api/v1/runs/${id}`);
+            if (!res.ok) throw new Error(`run ${id} not found`);
+            const body = await res.json();
+            return {
+              id: body.run.id as string,
+              name: body.run.name as string,
+              config: (body.run.config ?? {}) as Record<string, unknown>,
+              keys: (body.run.keys ?? []) as string[],
+            };
+          }),
+        );
         if (cancelled) return;
         setMetas(metaList);
         const keySet = new Set<string>();
+        for (const m of metaList) for (const k of m.keys) keySet.add(k);
         const perRun: Record<
           string,
           Record<string, { step: number; value: number }[]>
         > = {};
+        for (const m of metaList) perRun[m.id] = {};
         await Promise.all(
-          metaList.map(async (m) => {
-            perRun[m.id] = {};
-            await Promise.all(
-              m.keys.map(async (key) => {
-                keySet.add(key);
-                const r = await fetch(
-                  `/api/v1/runs/${m.id}/metrics?key=${encodeURIComponent(key)}&max_points=2000`,
-                );
-                if (r.ok) perRun[m.id]![key] = (await r.json()).points ?? [];
-              }),
+          [...keySet].map(async (key) => {
+            const r = await fetch(
+              `/api/v1/projects/${projectSlug}/chart?key=${encodeURIComponent(key)}&runs=${metaList.map((m) => m.id).join(",")}&max_points=2000`,
             );
+            if (!r.ok) return;
+            const body = (await r.json()) as {
+              series: {
+                runId: string;
+                points: { step: number; value: number }[];
+              }[];
+            };
+            for (const s of body.series) perRun[s.runId]![key] = s.points;
           }),
         );
         if (cancelled) return;
@@ -91,7 +99,7 @@ export function CompareView({ basePath }: { basePath: string }) {
     return () => {
       cancelled = true;
     };
-  }, [ids]);
+  }, [ids, basePath]);
 
   const diffRows = React.useMemo(() => {
     const all = new Set<string>();

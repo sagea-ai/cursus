@@ -161,6 +161,12 @@ model Run {
 
   @@index([projectId])
   @@index([status])
+  @@index([projectId, startedAt])
+  @@index([projectId, name])
+  // NOTE: Run also carries a trigram GIN index on name (Run_name_trgm_idx,
+  // created raw in migration 20260921120000_hot_indexes — Prisma cannot
+  // declare gin_trgm_ops). It serves ILIKE %q% run search. Do not drop it;
+  // future `migrate dev` runs may flag it as drift — keep it.
 }
 
 model Metric {

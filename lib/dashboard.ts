@@ -61,7 +61,7 @@ export async function getDashboardStats(
     groupCount,
     memberCount,
     topProjectRows,
-    spans,
+    totalComputeMs,
     activity,
     recentRuns,
     crashedWeek,
@@ -93,13 +93,9 @@ export async function getDashboardStats(
       orderBy: { _count: { projectId: "desc" } },
       take: 8,
     }),
-    // Narrow durations scan for the compute sum (two date columns, no
-    // joins, no text). Bounded by org run volume at the stated scale;
-    // graduate to a raw SUM aggregate if it ever shows in traces.
-    db.run.findMany({
-      where: runScope,
-      select: { startedAt: true, finishedAt: true },
-    }),
+    // Compute sum as a SQL aggregate (one row back, constant memory —
+    // the old narrow-scan + JS sum grew with org run volume).
+    getComputeMs(session),
     getActivitySeries(session),
     db.run.findMany({
       where: runScope,
@@ -141,12 +137,6 @@ export async function getDashboardStats(
   for (const row of statusRows) {
     totalRuns += row._count._all;
     if (row.status === "RUNNING") runningNow = row._count._all;
-  }
-  const now = Date.now();
-  let totalComputeMs = 0;
-  for (const r of spans) {
-    totalComputeMs +=
-      (r.finishedAt ?? new Date(now)).getTime() - r.startedAt.getTime();
   }
 
   // Project names for the top-projects chart (lookup by id, still
@@ -198,6 +188,28 @@ export async function getDashboardStats(
     })),
     pendingInvites,
   };
+}
+
+/** Compute sum as one aggregate row (same visibility scope as the rest
+ * of the dashboard). Unfinished runs bill to NOW(), matching the old
+ * JS-side sum exactly. */
+async function getComputeMs(session: Session): Promise<number> {
+  const isAdmin = session.role === "SUPER_ADMIN";
+  const rows = (await db.$queryRaw`
+    SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (
+      COALESCE(r."finishedAt", NOW()) - r."startedAt"
+    ))), 0) AS ms
+    FROM "Run" r
+    JOIN "Project" p ON p.id = r."projectId"
+    WHERE p."orgId" = ${session.orgId}
+      AND (
+        ${isAdmin} OR p."groupId" IS NULL OR EXISTS (
+          SELECT 1 FROM group_members gm
+          WHERE gm."groupId" = p."groupId" AND gm."userId" = ${session.userId}
+        )
+      )
+  `) as { ms: number | string }[];
+  return Number(rows[0]?.ms ?? 0) * 1000;
 }
 
 async function getActivitySeries(

@@ -165,13 +165,10 @@ export interface MediaStep {
 
 /** Viewer list: COMPLETED steps for one key, presigned GETs (15 min).
  * Read-gated by run visibility (same rule as metrics). */
-export async function listMedia(
-  auth: Session | null,
+async function assertRunVisible(
+  auth: Session,
   runId: string,
-  key: string,
-): Promise<MediaStep[]> {
-  requireAuth(auth);
-  requireStorage();
+): Promise<{ id: string }> {
   const run = await db.run.findFirst({
     where: {
       id: runId,
@@ -181,8 +178,15 @@ export async function listMedia(
     select: { id: true },
   });
   if (!run) throw new ApiError(404, "run not found");
+  return run;
+}
+
+async function listMediaSteps(
+  runId: string,
+  key: string,
+): Promise<MediaStep[]> {
   const items = await db.mediaItem.findMany({
-    where: { runId: run.id, key, status: "COMPLETED" },
+    where: { runId, key, status: "COMPLETED" },
     orderBy: { step: "asc" },
     take: MEDIA_LIST_CAP,
     select: { id: true, step: true, mime: true, storageKey: true },
@@ -195,6 +199,17 @@ export async function listMedia(
       url: await presignGet(item.storageKey),
     })),
   );
+}
+
+export async function listMedia(
+  auth: Session | null,
+  runId: string,
+  key: string,
+): Promise<MediaStep[]> {
+  requireAuth(auth);
+  requireStorage();
+  const run = await assertRunVisible(auth, runId);
+  return listMediaSteps(run.id, key);
 }
 
 /** Distinct media keys for the run (viewer tabs). One indexed groupBy. */
@@ -227,18 +242,27 @@ export interface MediaKeyView {
 }
 
 /** Everything the run-detail viewer needs: keys + presigned step URLs.
- * 1 groupBy + 1 steps query per key (keys capped at 24); presigning is
- * local crypto, parallelized. URLs live 15 minutes — a stale page
- * refreshes them on reload. */
+ * ONE run gate, then 1 groupBy + 1 steps query per key (keys capped at
+ * 24) — the old shape re-gated the same run per key. Presigning is local
+ * crypto, parallelized. URLs live 15 minutes — a stale page refreshes
+ * them on reload. */
 export async function getRunMediaView(
   auth: Session | null,
   runId: string,
 ): Promise<MediaKeyView[]> {
-  const keys = await listMediaKeys(auth, runId);
+  requireAuth(auth);
+  requireStorage();
+  const run = await assertRunVisible(auth, runId);
+  const rows = await db.mediaItem.groupBy({
+    by: ["key"],
+    where: { runId: run.id, status: "COMPLETED" },
+    orderBy: { key: "asc" },
+    take: 24,
+  });
   return Promise.all(
-    keys.map(async (key) => ({
-      key,
-      steps: await listMedia(auth, runId, key),
+    rows.map(async (row) => ({
+      key: row.key,
+      steps: await listMediaSteps(run.id, row.key),
     })),
   );
 }

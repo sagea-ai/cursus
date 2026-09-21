@@ -76,6 +76,13 @@ can reach (use HTTPS when the dashboard uses HTTPS). `S3_ENDPOINT` is the
 server-reachable URL; both must point to the same storage service. For an
 external provider, set both endpoints to that provider's URL.
 
+If RustFS never becomes healthy after an unclean first start, its volume
+can hold half-initialized state that hangs every later boot: recover with
+`docker compose stop rustfs && docker volume rm cursus_cursus-rustfs`,
+then start again (the bucket self-provisions on first upload). Warning:
+this deletes any bytes already stored in that volume — only do it when
+the volume never served traffic, or after moving uploads elsewhere.
+
 #### Existing MinIO deployments
 
 RustFS uses a new `cursus-rustfs` volume. Existing MinIO data is not migrated

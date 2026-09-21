@@ -17,9 +17,10 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 //
 // Required env: S3_ENDPOINT + S3_ACCESS_KEY + S3_SECRET_KEY.
 // Optional: S3_BUCKET (default cursus-media), S3_REGION (default us-east-1),
-// S3_FORCE_PATH_STYLE (default true for local S3-compatible storage).
-// S3_PUBLIC_ENDPOINT optionally overrides the endpoint used to sign URLs
-// for browsers/SDKs outside Docker; server operations still use S3_ENDPOINT.
+// S3_FORCE_PATH_STYLE (default true — required for S3-compatible stores),
+// S3_PUBLIC_ENDPOINT (client-facing URL when S3_ENDPOINT is internal, e.g.
+// Docker service names: presigned URLs are minted against it so browsers
+// and training boxes can reach them).
 // Without endpoint/creds, storageEnabled() is false and byte routes answer
 // 503 with a clear message instead of failing obscurely mid-upload.
 
